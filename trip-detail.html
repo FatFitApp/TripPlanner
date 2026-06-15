@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Detalhes da Viagem - Trip Planner</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="home-container">
+        <header class="app-header">
+            <button class="menu-btn" onclick="window.location.href='home.html'">
+                <i class="fas fa-arrow-left"></i>
+            </button>
+            <h2>Detalhes da Viagem</h2>
+            <div style="width: 40px;"></div>
+        </header>
+
+        <main class="main-content">
+            <div id="tripInfo" class="card">
+                <div class="flex justify-between align-center">
+                    <h3 id="tripTitle">Carregando...</h3>
+                    <button class="btn-secondary" onclick="addItineraryItem()">
+                        <i class="fas fa-plus"></i> Adicionar
+                    </button>
+                </div>
+                <p id="tripDestination" class="text-gray-500"></p>
+                <p id="tripDates" class="text-gray-500"></p>
+            </div>
+
+            <h4 style="margin: 16px 0 8px;">📋 Roteiro Planejado</h4>
+            <div id="itineraryContainer">
+                <div class="empty-state">
+                    <i class="fas fa-calendar-alt"></i>
+                    <p>Nenhum item no roteiro</p>
+                    <button class="btn-primary" onclick="addItineraryItem()">Adicionar primeiro item</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Adicionar Item -->
+    <div id="itemModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Adicionar ao Roteiro</h3>
+                <button class="modal-close" onclick="closeModal('itemModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="input-group">
+                    <i class="fas fa-calendar-day"></i>
+                    <input type="number" id="itemDay" placeholder="Dia (1, 2, 3...)" min="1">
+                </div>
+                <div class="flex gap-1">
+                    <div class="input-group">
+                        <i class="fas fa-clock"></i>
+                        <input type="time" id="itemStartTime">
+                    </div>
+                    <div class="input-group">
+                        <i class="fas fa-clock"></i>
+                        <input type="time" id="itemEndTime">
+                    </div>
+                </div>
+                <div class="input-group">
+                    <i class="fas fa-tag"></i>
+                    <input type="text" id="itemTitle" placeholder="Título (ex: Bondinho)">
+                </div>
+                <div class="input-group">
+                    <i class="fas fa-map-marker-alt"></i>
+                    <input type="text" id="itemAddress" placeholder="Endereço">
+                </div>
+                <div class="input-group">
+                    <i class="fas fa-dollar-sign"></i>
+                    <input type="number" id="itemCost" placeholder="Custo planejado" step="0.01">
+                </div>
+                <button class="btn-primary btn-full" onclick="saveItineraryItem()">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="loading-screen" class="loading-screen" style="display: none;">
+        <div class="loading-content">
+            <i class="fas fa-plane-departure fa-3x loading-icon"></i>
+            <div class="loading-dots"><span></span><span></span><span></span></div>
+            <p>Carregando...</p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+    <script>
+        let currentTrip = null;
+        let itineraryItems = [];
+
+        function showToast(message, type) {
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i><span>${message}</span>`;
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.add('show');
+                setTimeout(() => toast.remove(), 3000);
+            }, 10);
+        }
+
+        function showLoading() {
+            document.getElementById('loading-screen').style.display = 'flex';
+        }
+
+        function hideLoading() {
+            document.getElementById('loading-screen').style.display = 'none';
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('open');
+        }
+
+        async function loadTripDetails() {
+            showLoading();
+            const params = new URLSearchParams(window.location.search);
+            const tripId = params.get('id');
+            
+            if (!tripId) {
+                showToast('Viagem não encontrada', 'error');
+                setTimeout(() => window.location.href = 'home.html', 1500);
+                return;
+            }
+            
+            const { data: trip } = await db.from('trips').select('*').eq('id', tripId).single();
+            currentTrip = trip;
+            
+            document.getElementById('tripTitle').textContent = trip.title;
+            document.getElementById('tripDestination').textContent = trip.destination || 'Destino não definido';
+            document.getElementById('tripDates').textContent = `${formatDate(trip.start_date)} - ${formatDate(trip.end_date)}`;
+            
+            await loadItinerary(tripId);
+            hideLoading();
+        }
+
+        async function loadItinerary(tripId) {
+            const { data } = await db.from('itinerary_items').select('*').eq('trip_id', tripId).order('day_number', { ascending: true });
+            itineraryItems = data || [];
+            
+            const container = document.getElementById('itineraryContainer');
+            if (itineraryItems.length === 0) {
+                container.innerHTML = `<div class="empty-state"><i class="fas fa-calendar-alt"></i><p>Nenhum item no roteiro</p><button class="btn-primary" onclick="addItineraryItem()">Adicionar primeiro item</button></div>`;
+                return;
+            }
+            
+            const days = [...new Set(itineraryItems.map(i => i.day_number))].sort();
+            let html = '';
+            
+            days.forEach(day => {
+                const dayItems = itineraryItems.filter(i => i.day_number === day);
+                html += `<div class="card"><h4>📅 Dia ${day}</h4>`;
+                dayItems.forEach(item => {
+                    html += `
+                        <div style="border-left: 3px solid var(--primary); padding-left: 12px; margin: 12px 0;">
+                            <strong>${escapeHtml(item.title)}</strong>
+                            <div style="font-size: 12px; color: var(--gray-500);">
+                                ${item.start_time ? item.start_time.substring(0,5) : '--:--'} - ${item.end_time ? item.end_time.substring(0,5) : '--:--'}
+                            </div>
+                            ${item.address ? `<div style="font-size: 12px;"><i class="fas fa-map-marker-alt"></i> ${escapeHtml(item.address)}</div>` : ''}
+                            <div style="font-size: 13px; color: var(--success);">💰 ${formatCurrency(item.planned_cost)}</div>
+                        </div>
+                    `;
+                });
+                html += `</div>`;
+            });
+            
+            container.innerHTML = html;
+        }
+
+        function addItineraryItem() {
+            document.getElementById('itemModal').classList.add('open');
+        }
+
+        async function saveItineraryItem() {
+            const day = parseInt(document.getElementById('itemDay').value);
+            const startTime = document.getElementById('itemStartTime').value;
+            const endTime = document.getElementById('itemEndTime').value;
+            const title = document.getElementById('itemTitle').value;
+            const address = document.getElementById('itemAddress').value;
+            const cost = parseFloat(document.getElementById('itemCost').value);
+            
+            if (!day || !title) {
+                showToast('Preencha o dia e o título', 'error');
+                return;
+            }
+            
+            showLoading();
+            const { error } = await db.from('itinerary_items').insert({
+                trip_id: currentTrip.id,
+                day_number: day,
+                start_time: startTime || null,
+                end_time: endTime || null,
+                title: title,
+                address: address || null,
+                planned_cost: cost || 0
+            });
+            
+            hideLoading();
+            
+            if (error) {
+                showToast('Erro ao salvar', 'error');
+                return;
+            }
+            
+            showToast('Item adicionado!', 'success');
+            closeModal('itemModal');
+            document.getElementById('itemDay').value = '';
+            document.getElementById('itemStartTime').value = '';
+            document.getElementById('itemEndTime').value = '';
+            document.getElementById('itemTitle').value = '';
+            document.getElementById('itemAddress').value = '';
+            document.getElementById('itemCost').value = '';
+            
+            await loadItinerary(currentTrip.id);
+        }
+
+        loadTripDetails();
+    </script>
+</body>
+</html>

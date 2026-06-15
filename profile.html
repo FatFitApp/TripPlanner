@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Meu Perfil - Trip Planner</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="home-container">
+        <header class="app-header">
+            <button class="menu-btn" onclick="window.location.href='home.html'">
+                <i class="fas fa-arrow-left"></i>
+            </button>
+            <h2>Meu Perfil</h2>
+            <button class="menu-btn" id="editProfileBtn">
+                <i class="fas fa-edit"></i>
+            </button>
+        </header>
+
+        <main class="main-content">
+            <div class="profile-header card" style="text-align: center;">
+                <div class="profile-avatar-container" style="position: relative; display: inline-block;">
+                    <img id="profileAvatar" src="https://via.placeholder.com/100" class="avatar-lg" style="width: 100px; height: 100px;">
+                    <button id="changeAvatarBtn" class="change-avatar-btn">
+                        <i class="fas fa-camera"></i>
+                    </button>
+                </div>
+                <h3 id="profileName">Carregando...</h3>
+                <p id="profileEmail" style="color: var(--gray-500);"></p>
+                <p id="profileBio" style="margin-top: 8px;"></p>
+            </div>
+
+            <div class="stats-grid" style="display: flex; gap: 12px; margin: 16px 0;">
+                <div class="card" style="flex: 1; text-align: center;">
+                    <i class="fas fa-plane" style="font-size: 24px; color: var(--primary);"></i>
+                    <h3 id="tripCount">0</h3>
+                    <small>Viagens</small>
+                </div>
+                <div class="card" style="flex: 1; text-align: center;">
+                    <i class="fas fa-camera" style="font-size: 24px; color: var(--secondary);"></i>
+                    <h3 id="postCount">0</h3>
+                    <small>Posts</small>
+                </div>
+                <div class="card" style="flex: 1; text-align: center;">
+                    <i class="fas fa-users" style="font-size: 24px; color: var(--success);"></i>
+                    <h3 id="friendCount">0</h3>
+                    <small>Amigos</small>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="flex justify-between align-center">
+                    <h4>📸 Minhas Postagens</h4>
+                    <button class="btn-secondary" onclick="window.location.href='home.html?action=register'">
+                        <i class="fas fa-plus"></i> Nova
+                    </button>
+                </div>
+                <div id="userPosts" class="posts-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 16px;">
+                    <div class="empty-state" style="grid-column: span 3;">
+                        <p>Nenhuma postagem ainda</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h4>✈️ Minhas Viagens</h4>
+                <div id="userTrips"></div>
+            </div>
+        </main>
+
+        <!-- Modal Editar Perfil -->
+        <div id="editModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Editar Perfil</h3>
+                    <button class="modal-close" onclick="closeModal('editModal')">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="input-group">
+                        <i class="fas fa-user"></i>
+                        <input type="text" id="editName" placeholder="Nome">
+                    </div>
+                    <div class="input-group">
+                        <i class="fas fa-info-circle"></i>
+                        <textarea id="editBio" placeholder="Sobre você..." rows="3" style="resize: none;"></textarea>
+                    </div>
+                    <button class="btn-primary btn-full" onclick="saveProfile()">Salvar</button>
+                </div>
+            </div>
+        </div>
+
+        <input type="file" id="avatarInput" accept="image/*" style="display: none;">
+
+        <nav class="bottom-nav">
+            <button class="nav-item" onclick="window.location.href='home.html'">
+                <i class="fas fa-home"></i>
+                <span>Timeline</span>
+            </button>
+            <button class="nav-item" onclick="goToTripDetail()">
+                <i class="fas fa-clipboard-list"></i>
+                <span>Detalhes</span>
+            </button>
+            <button class="nav-item nav-item-center" onclick="window.location.href='home.html?action=register'">
+                <i class="fas fa-camera"></i>
+                <span>Registrar</span>
+            </button>
+            <button class="nav-item" onclick="window.location.href='costs.html'">
+                <i class="fas fa-chart-line"></i>
+                <span>Custos</span>
+            </button>
+            <button class="nav-item" onclick="goToChat()">
+                <i class="fas fa-comment-dots"></i>
+                <span>Chat</span>
+            </button>
+        </nav>
+    </div>
+
+    <div id="loading-screen" class="loading-screen" style="display: none;">
+        <div class="loading-content">
+            <i class="fas fa-plane-departure fa-3x loading-icon"></i>
+            <div class="loading-dots"><span></span><span></span><span></span></div>
+            <p>Carregando...</p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+    <script>
+        let currentUser = null;
+        let currentProfile = null;
+        let currentTripId = null;
+
+        function showToast(message, type) {
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i><span>${message}</span>`;
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.add('show');
+                setTimeout(() => toast.remove(), 3000);
+            }, 10);
+        }
+
+        function showLoading() {
+            document.getElementById('loading-screen').style.display = 'flex';
+        }
+
+        function hideLoading() {
+            document.getElementById('loading-screen').style.display = 'none';
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('open');
+        }
+
+        function goToTripDetail() {
+            if (currentTripId) {
+                window.location.href = `trip-detail.html?id=${currentTripId}`;
+            } else {
+                showToast('Selecione uma viagem no menu', 'warning');
+            }
+        }
+
+        function goToChat() {
+            if (currentTripId) {
+                window.location.href = `chat.html?id=${currentTripId}`;
+            } else {
+                showToast('Selecione uma viagem no menu', 'warning');
+            }
+        }
+
+        async function loadProfile() {
+            showLoading();
+            
+            const session = await checkAuth();
+            if (!session) return;
+            currentUser = session.user;
+            
+            currentProfile = await getUserProfile(currentUser.id);
+            
+            document.getElementById('profileName').textContent = currentProfile?.name || currentUser.user_metadata?.name || 'Viajante';
+            document.getElementById('profileEmail').textContent = currentUser.email;
+            document.getElementById('profileBio').textContent = currentProfile?.bio || 'Aventureiro apaixonado por viagens! 🌍';
+            
+            if (currentProfile?.avatar_url) {
+                document.getElementById('profileAvatar').src = currentProfile.avatar_url;
+            }
+            
+            // Carregar estatísticas
+            const { count: tripCount } = await db.from('trips').select('*', { count: 'exact', head: true }).eq('user_id', currentUser.id);
+            const { count: postCount } = await db.from('social_posts').select('*', { count: 'exact', head: true }).eq('user_id', currentUser.id);
+            
+            document.getElementById('tripCount').textContent = tripCount || 0;
+            document.getElementById('postCount').textContent = postCount || 0;
+            document.getElementById('friendCount').textContent = '0'; // Implementar depois
+            
+            await loadUserPosts();
+            await loadUserTrips();
+            
+            hideLoading();
+        }
+
+        async function loadUserPosts() {
+            const { data: posts } = await db
+                .from('social_posts')
+                .select('*')
+                .eq('user_id', currentUser.id)
+                .order('created_at', { ascending: false })
+                .limit(9);
+            
+            const container = document.getElementById('userPosts');
+            
+            if (!posts || posts.length === 0) {
+                container.innerHTML = '<div class="empty-state" style="grid-column: span 3;"><p>Nenhuma postagem ainda</p></div>';
+                return;
+            }
+            
+            container.innerHTML = posts.map(post => `
+                <div style="position: relative;">
+                    ${post.image_url ? `<img src="${post.image_url}" style="width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px;">` : 
+                                       `<div style="width: 100%; aspect-ratio: 1; background: var(--gray-200); border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                                            <i class="fas fa-image" style="font-size: 24px; color: var(--gray-400);"></i>
+                                        </div>`}
+                    ${post.actual_cost ? `<div style="position: absolute; bottom: 4px; right: 4px; background: rgba(0,0,0,0.6); color: white; border-radius: 12px; padding: 2px 6px; font-size: 10px;">💰 ${formatCurrency(post.actual_cost)}</div>` : ''}
+                </div>
+            `).join('');
+        }
+
+        async function loadUserTrips() {
+            const { data: trips } = await db
+                .from('trips')
+                .select('*')
+                .eq('user_id', currentUser.id)
+                .order('start_date', { ascending: false });
+            
+            const container = document.getElementById('userTrips');
+            
+            if (!trips || trips.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>Nenhuma viagem criada ainda</p><button class="btn-primary" onclick="window.location.href=\'home.html?action=create-trip\'">Criar primeira viagem</button></div>';
+                return;
+            }
+            
+            container.innerHTML = trips.map(trip => `
+                <div class="flex justify-between align-center" style="margin-bottom: 12px; padding: 8px; background: var(--gray-50); border-radius: 8px;">
+                    <div>
+                        <strong>${escapeHtml(trip.title)}</strong>
+                        <div style="font-size: 12px; color: var(--gray-500);">${formatDate(trip.start_date)} - ${formatDate(trip.end_date)}</div>
+                    </div>
+                    <button class="btn-secondary" onclick="window.location.href='trip-detail.html?id=${trip.id}'">
+                        <i class="fas fa-arrow-right"></i>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        async function saveProfile() {
+            const name = document.getElementById('editName').value;
+            const bio = document.getElementById('editBio').value;
+            
+            showLoading();
+            
+            const { error } = await db
+                .from('profiles')
+                .update({ name: name, bio: bio })
+                .eq('id', currentUser.id);
+            
+            hideLoading();
+            
+            if (error) {
+                showToast('Erro ao salvar', 'error');
+                return;
+            }
+            
+            showToast('Perfil atualizado!', 'success');
+            closeModal('editModal');
+            await loadProfile();
+        }
+
+        async function changeAvatar(file) {
+            showLoading();
+            
+            try {
+                const url = await uploadImage(file, 'avatars', currentUser.id);
+                
+                const { error } = await db
+                    .from('profiles')
+                    .update({ avatar_url: url })
+                    .eq('id', currentUser.id);
+                
+                if (error) throw error;
+                
+                showToast('Avatar atualizado!', 'success');
+                await loadProfile();
+            } catch (error) {
+                showToast('Erro ao atualizar avatar', 'error');
+            }
+            
+            hideLoading();
+        }
+
+        function setupEventListeners() {
+            document.getElementById('editProfileBtn').addEventListener('click', () => {
+                document.getElementById('editName').value = currentProfile?.name || '';
+                document.getElementById('editBio').value = currentProfile?.bio || '';
+                document.getElementById('editModal').classList.add('open');
+            });
+            
+            document.getElementById('changeAvatarBtn').addEventListener('click', () => {
+                document.getElementById('avatarInput').click();
+            });
+            
+            document.getElementById('avatarInput').addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) changeAvatar(file);
+            });
+        }
+
+        loadProfile();
+        setupEventListeners();
+    </script>
+    <style>
+        .change-avatar-btn {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .posts-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+    </style>
+</body>
+</html>

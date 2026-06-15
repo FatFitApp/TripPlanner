@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Perfil - Trip Planner</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="home-container">
+        <header class="app-header">
+            <button class="menu-btn" onclick="window.location.href='home.html'">
+                <i class="fas fa-arrow-left"></i>
+            </button>
+            <h2>Perfil</h2>
+            <div style="width: 40px;"></div>
+        </header>
+
+        <main class="main-content">
+            <div class="profile-header card" style="text-align: center;">
+                <img id="profileAvatar" src="https://via.placeholder.com/100" class="avatar-lg" style="width: 100px; height: 100px;">
+                <h3 id="profileName">Carregando...</h3>
+                <p id="profileBio" style="margin-top: 8px;"></p>
+                <button id="friendBtn" class="btn-primary" style="margin-top: 12px;">
+                    <i class="fas fa-user-plus"></i> Adicionar Amigo
+                </button>
+            </div>
+
+            <div class="stats-grid" style="display: flex; gap: 12px; margin: 16px 0;">
+                <div class="card" style="flex: 1; text-align: center;">
+                    <i class="fas fa-plane" style="font-size: 24px; color: var(--primary);"></i>
+                    <h3 id="tripCount">0</h3>
+                    <small>Viagens</small>
+                </div>
+                <div class="card" style="flex: 1; text-align: center;">
+                    <i class="fas fa-camera" style="font-size: 24px; color: var(--secondary);"></i>
+                    <h3 id="postCount">0</h3>
+                    <small>Posts</small>
+                </div>
+                <div class="card" style="flex: 1; text-align: center;">
+                    <i class="fas fa-users" style="font-size: 24px; color: var(--success);"></i>
+                    <h3 id="friendCount">0</h3>
+                    <small>Amigos</small>
+                </div>
+            </div>
+
+            <div class="card">
+                <h4>📸 Postagens</h4>
+                <div id="userPosts" class="posts-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 16px;">
+                    <div class="empty-state" style="grid-column: span 3;">
+                        <p>Nenhuma postagem ainda</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <nav class="bottom-nav">
+            <button class="nav-item" onclick="window.location.href='home.html'">
+                <i class="fas fa-home"></i>
+                <span>Timeline</span>
+            </button>
+            <button class="nav-item" onclick="goToTripDetail()">
+                <i class="fas fa-clipboard-list"></i>
+                <span>Detalhes</span>
+            </button>
+            <button class="nav-item nav-item-center" onclick="window.location.href='home.html?action=register'">
+                <i class="fas fa-camera"></i>
+                <span>Registrar</span>
+            </button>
+            <button class="nav-item" onclick="window.location.href='costs.html'">
+                <i class="fas fa-chart-line"></i>
+                <span>Custos</span>
+            </button>
+            <button class="nav-item" onclick="goToChat()">
+                <i class="fas fa-comment-dots"></i>
+                <span>Chat</span>
+            </button>
+        </nav>
+    </div>
+
+    <div id="loading-screen" class="loading-screen" style="display: none;">
+        <div class="loading-content">
+            <i class="fas fa-plane-departure fa-3x loading-icon"></i>
+            <div class="loading-dots"><span></span><span></span><span></span></div>
+            <p>Carregando...</p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+    <script>
+        let profileUserId = null;
+        let currentUser = null;
+        let currentTripId = null;
+
+        function showToast(message, type) {
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i><span>${message}</span>`;
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.add('show');
+                setTimeout(() => toast.remove(), 3000);
+            }, 10);
+        }
+
+        function showLoading() {
+            document.getElementById('loading-screen').style.display = 'flex';
+        }
+
+        function hideLoading() {
+            document.getElementById('loading-screen').style.display = 'none';
+        }
+
+        function goToTripDetail() {
+            if (currentTripId) {
+                window.location.href = `trip-detail.html?id=${currentTripId}`;
+            } else {
+                showToast('Selecione uma viagem no menu', 'warning');
+            }
+        }
+
+        function goToChat() {
+            if (currentTripId) {
+                window.location.href = `chat.html?id=${currentTripId}`;
+            } else {
+                showToast('Selecione uma viagem no menu', 'warning');
+            }
+        }
+
+        async function loadProfile() {
+            showLoading();
+            
+            const session = await checkAuth();
+            if (!session) return;
+            currentUser = session.user;
+            
+            const params = new URLSearchParams(window.location.search);
+            profileUserId = params.get('id');
+            
+            if (!profileUserId) {
+                showToast('Usuário não encontrado', 'error');
+                setTimeout(() => window.location.href = 'home.html', 1500);
+                return;
+            }
+            
+            const profile = await getUserProfile(profileUserId);
+            
+            document.getElementById('profileName').textContent = profile?.name || 'Viajante';
+            document.getElementById('profileBio').textContent = profile?.bio || 'Aventureiro viajante 🌍';
+            
+            if (profile?.avatar_url) {
+                document.getElementById('profileAvatar').src = profile.avatar_url;
+            }
+            
+            // Carregar estatísticas
+            const { count: tripCount } = await db.from('trips').select('*', { count: 'exact', head: true }).eq('user_id', profileUserId);
+            const { count: postCount } = await db.from('social_posts').select('*', { count: 'exact', head: true }).eq('user_id', profileUserId);
+            
+            document.getElementById('tripCount').textContent = tripCount || 0;
+            document.getElementById('postCount').textContent = postCount || 0;
+            document.getElementById('friendCount').textContent = '0';
+            
+            // Verificar amizade
+            const { data: friendship } = await db
+                .from('friendships')
+                .select('*')
+                .or(`and(user_id.eq.${currentUser.id},friend_id.eq.${profileUserId}),and(user_id.eq.${profileUserId},friend_id.eq.${currentUser.id})`)
+                .single();
+            
+            const friendBtn = document.getElementById('friendBtn');
+            if (friendship) {
+                if (friendship.status === 'accepted') {
+                    friendBtn.innerHTML = '<i class="fas fa-check"></i> Amigo';
+                    friendBtn.disabled = true;
+                } else if (friendship.status === 'pending') {
+                    if (friendship.user_id === currentUser.id) {
+                        friendBtn.innerHTML = '<i class="fas fa-clock"></i> Solicitação enviada';
+                        friendBtn.disabled = true;
+                    } else {
+                        friendBtn.innerHTML = '<i class="fas fa-user-check"></i> Aceitar solicitação';
+                        friendBtn.onclick = () => acceptFriend(friendship.id);
+                    }
+                }
+            } else {
+                friendBtn.innerHTML = '<i class="fas fa-user-plus"></i> Adicionar Amigo';
+                friendBtn.onclick = () => sendFriendRequest();
+            }
+            
+            await loadUserPosts();
+            
+            hideLoading();
+        }
+
+        async function loadUserPosts() {
+            const { data: posts } = await db
+                .from('social_posts')
+                .select('*')
+                .eq('user_id', profileUserId)
+                .order('created_at', { ascending: false })
+                .limit(9);
+            
+            const container = document.getElementById('userPosts');
+            
+            if (!posts || posts.length === 0) {
+                container.innerHTML = '<div class="empty-state" style="grid-column: span 3;"><p>Nenhuma postagem ainda</p></div>';
+                return;
+            }
+            
+            container.innerHTML = posts.map(post => `
+                <div style="position: relative;">
+                    ${post.image_url ? `<img src="${post.image_url}" style="width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px;">` : 
+                                       `<div style="width: 100%; aspect-ratio: 1; background: var(--gray-200); border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                                            <i class="fas fa-image" style="font-size: 24px; color: var(--gray-400);"></i>
+                                        </div>`}
+                </div>
+            `).join('');
+        }
+
+        async function sendFriendRequest() {
+            showLoading();
+            
+            const { error } = await db.from('friendships').insert({
+                user_id: currentUser.id,
+                friend_id: profileUserId,
+                status: 'pending',
+                created_at: new Date()
+            });
+            
+            hideLoading();
+            
+            if (error) {
+                showToast('Erro ao enviar solicitação', 'error');
+                return;
+            }
+            
+            showToast('Solicitação enviada!', 'success');
+            document.getElementById('friendBtn').innerHTML = '<i class="fas fa-clock"></i> Solicitação enviada';
+            document.getElementById('friendBtn').disabled = true;
+        }
+
+        async function acceptFriend(friendshipId) {
+            showLoading();
+            
+            const { error } = await db
+                .from('friendships')
+                .update({ status: 'accepted' })
+                .eq('id', friendshipId);
+            
+            hideLoading();
+            
+            if (error) {
+                showToast('Erro ao aceitar solicitação', 'error');
+                return;
+            }
+            
+            showToast('Agora vocês são amigos!', 'success');
+            document.getElementById('friendBtn').innerHTML = '<i class="fas fa-check"></i> Amigo';
+            document.getElementById('friendBtn').disabled = true;
+        }
+
+        loadProfile();
+    </script>
+    <style>
+        .posts-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+    </style>
+</body>
+</html>

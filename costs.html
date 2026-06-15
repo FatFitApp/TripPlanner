@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Custos - Trip Planner</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="home-container">
+        <header class="app-header">
+            <button class="menu-btn" onclick="window.location.href='home.html'">
+                <i class="fas fa-arrow-left"></i>
+            </button>
+            <h2>💰 Custos</h2>
+            <div style="width: 40px;"></div>
+        </header>
+
+        <main class="main-content">
+            <!-- Seletor de Viagem -->
+            <div class="card">
+                <div class="input-group">
+                    <i class="fas fa-plane"></i>
+                    <select id="tripSelector" class="input-full" onchange="loadCosts()">
+                        <option value="">Selecione uma viagem</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Cards Resumo -->
+            <div class="flex gap-1" style="margin-bottom: 16px;">
+                <div class="card" style="flex: 1; text-align: center;">
+                    <small style="color: var(--gray-500);">💰 Planejado</small>
+                    <h3 id="totalPlanned">R$ 0,00</h3>
+                </div>
+                <div class="card" style="flex: 1; text-align: center;">
+                    <small style="color: var(--gray-500);">💸 Realizado</small>
+                    <h3 id="totalActual">R$ 0,00</h3>
+                </div>
+            </div>
+
+            <!-- Diferença -->
+            <div class="card" id="differenceCard">
+                <div class="flex justify-between align-center">
+                    <span>📊 Diferença</span>
+                    <span id="differenceValue" class="text-success">R$ 0,00</span>
+                </div>
+                <div class="progress-bar-container" style="margin-top: 8px;">
+                    <div class="progress-bar" id="progressBar" style="width: 0%;"></div>
+                </div>
+                <p id="statusMessage" style="margin-top: 8px; font-size: 12px;"></p>
+            </div>
+
+            <!-- Gráfico -->
+            <div class="card">
+                <h4>📊 Comparativo por Categoria</h4>
+                <canvas id="costChart" style="max-height: 250px; margin: 16px 0;"></canvas>
+            </div>
+
+            <!-- Lista Detalhada -->
+            <h4 style="margin: 16px 0 8px;">📋 Detalhamento</h4>
+            <div id="detailedList"></div>
+
+            <!-- Top Gastos -->
+            <div class="card">
+                <h4>🏆 Top 3 Maiores Gastos</h4>
+                <div id="topExpenses"></div>
+            </div>
+
+            <!-- Dicas -->
+            <div class="card" id="tipsCard" style="background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary) 100%); color: white;">
+                <h4>💡 Dica de Economia</h4>
+                <p id="tipMessage">Selecione uma viagem para ver dicas personalizadas</p>
+            </div>
+        </main>
+
+        <nav class="bottom-nav">
+            <button class="nav-item" onclick="window.location.href='home.html'">
+                <i class="fas fa-home"></i>
+                <span>Timeline</span>
+            </button>
+            <button class="nav-item" onclick="goToTripDetail()">
+                <i class="fas fa-clipboard-list"></i>
+                <span>Detalhes</span>
+            </button>
+            <button class="nav-item nav-item-center" onclick="window.location.href='home.html?action=register'">
+                <i class="fas fa-camera"></i>
+                <span>Registrar</span>
+            </button>
+            <button class="nav-item active">
+                <i class="fas fa-chart-line"></i>
+                <span>Custos</span>
+            </button>
+            <button class="nav-item" onclick="goToChat()">
+                <i class="fas fa-comment-dots"></i>
+                <span>Chat</span>
+            </button>
+        </nav>
+    </div>
+
+    <div id="loading-screen" class="loading-screen" style="display: none;">
+        <div class="loading-content">
+            <i class="fas fa-plane-departure fa-3x loading-icon"></i>
+            <div class="loading-dots"><span></span><span></span><span></span></div>
+            <p>Carregando...</p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+    <script>
+        let currentTripId = null;
+        let costChart = null;
+        let allTrips = [];
+
+        function showToast(message, type) {
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i><span>${message}</span>`;
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.add('show');
+                setTimeout(() => toast.remove(), 3000);
+            }, 10);
+        }
+
+        function showLoading() {
+            document.getElementById('loading-screen').style.display = 'flex';
+        }
+
+        function hideLoading() {
+            document.getElementById('loading-screen').style.display = 'none';
+        }
+
+        function goToTripDetail() {
+            if (currentTripId) {
+                window.location.href = `trip-detail.html?id=${currentTripId}`;
+            } else {
+                showToast('Selecione uma viagem primeiro', 'warning');
+            }
+        }
+
+        function goToChat() {
+            if (currentTripId) {
+                window.location.href = `chat.html?id=${currentTripId}`;
+            } else {
+                showToast('Selecione uma viagem primeiro', 'warning');
+            }
+        }
+
+        async function loadUserTrips() {
+            const user = await getCurrentUser();
+            if (!user) return;
+
+            const { data } = await db
+                .from('trips')
+                .select('id, title, start_date')
+                .eq('user_id', user.id)
+                .order('start_date', { ascending: false });
+
+            allTrips = data || [];
+            const selector = document.getElementById('tripSelector');
+            
+            if (allTrips.length === 0) {
+                selector.innerHTML = '<option value="">Nenhuma viagem encontrada</option>';
+                return;
+            }
+
+            selector.innerHTML = '<option value="">Selecione uma viagem</option>' +
+                allTrips.map(trip => `<option value="${trip.id}">✈️ ${escapeHtml(trip.title)}</option>`).join('');
+        }
+
+        async function loadCosts() {
+            const selector = document.getElementById('tripSelector');
+            currentTripId = selector.value;
+            
+            if (!currentTripId) {
+                document.getElementById('totalPlanned').innerHTML = 'R$ 0,00';
+                document.getElementById('totalActual').innerHTML = 'R$ 0,00';
+                document.getElementById('detailedList').innerHTML = '<div class="empty-state"><i class="fas fa-chart-line"></i><p>Selecione uma viagem</p></div>';
+                return;
+            }
+
+            showLoading();
+
+            // Buscar itens do roteiro (planejados e realizados)
+            const { data: itinerary } = await db
+                .from('itinerary_items')
+                .select('*')
+                .eq('trip_id', currentTripId);
+
+            // Buscar posts sociais (realizados)
+            const { data: posts } = await db
+                .from('social_posts')
+                .select('*')
+                .eq('trip_id', currentTripId)
+                .not('actual_cost', 'is', null);
+
+            // Calcular totais
+            let totalPlanned = 0;
+            let totalActual = 0;
+            const categories = {
+                '🏨 Hotel': { planned: 0, actual: 0 },
+                '🚗 Transporte': { planned: 0, actual: 0 },
+                '🍽️ Alimentação': { planned: 0, actual: 0 },
+                '🎫 Passeios': { planned: 0, actual: 0 },
+                '🛍️ Compras': { planned: 0, actual: 0 },
+                '📝 Outros': { planned: 0, actual: 0 }
+            };
+
+            // Processar itens do roteiro
+            (itinerary || []).forEach(item => {
+                totalPlanned += item.planned_cost || 0;
+                if (item.actual_cost) totalActual += item.actual_cost;
+                
+                // Categorização simples baseada no título
+                let category = '📝 Outros';
+                const title = (item.title || '').toLowerCase();
+                if (title.includes('hotel') || title.includes('pousada') || title.includes('hostel')) category = '🏨 Hotel';
+                else if (title.includes('uber') || title.includes('taxi') || title.includes('carro') || title.includes('avião') || title.includes('bus')) category = '🚗 Transporte';
+                else if (title.includes('restaurante') || title.includes('café') || title.includes('comida') || title.includes('almoço')) category = '🍽️ Alimentação';
+                else if (title.includes('parque') || title.includes('passeio') || title.includes('tour') || title.includes('ingresso')) category = '🎫 Passeios';
+                else if (title.includes('compras') || title.includes('loja') || title.includes('souvenir')) category = '🛍️ Compras';
+                
+                categories[category].planned += item.planned_cost || 0;
+                if (item.actual_cost) categories[category].actual += item.actual_cost;
+            });
+
+            // Processar posts (gastos realizados avulsos)
+            (posts || []).forEach(post => {
+                totalActual += post.actual_cost || 0;
+                let category = '📝 Outros';
+                const caption = (post.caption || '').toLowerCase();
+                if (caption.includes('hotel') || caption.includes('pousada')) category = '🏨 Hotel';
+                else if (caption.includes('uber') || caption.includes('transporte')) category = '🚗 Transporte';
+                else if (caption.includes('comida') || caption.includes('restaurante')) category = '🍽️ Alimentação';
+                else if (caption.includes('passeio') || caption.includes('parque')) category = '🎫 Passeios';
+                else if (caption.includes('compras')) category = '🛍️ Compras';
+                
+                categories[category].actual += post.actual_cost || 0;
+            });
+
+            // Atualizar totais na tela
+            document.getElementById('totalPlanned').innerHTML = formatCurrency(totalPlanned);
+            document.getElementById('totalActual').innerHTML = formatCurrency(totalActual);
+            
+            const difference = totalActual - totalPlanned;
+            const diffElement = document.getElementById('differenceValue');
+            const percentUsed = totalPlanned > 0 ? (totalActual / totalPlanned) * 100 : 0;
+            
+            if (difference > 0) {
+                diffElement.innerHTML = formatCurrency(difference);
+                diffElement.className = 'text-danger';
+                document.getElementById('statusMessage').innerHTML = `⚠️ Você gastou ${formatCurrency(difference)} a mais do que o planejado (${Math.round(percentUsed)}% do orçamento)`;
+                document.getElementById('progressBar').style.width = `${Math.min(percentUsed, 100)}%`;
+                document.getElementById('progressBar').style.background = 'var(--danger)';
+            } else if (difference < 0) {
+                diffElement.innerHTML = formatCurrency(Math.abs(difference));
+                diffElement.className = 'text-success';
+                document.getElementById('statusMessage').innerHTML = `✅ Você economizou ${formatCurrency(Math.abs(difference))}! (${Math.round(percentUsed)}% do orçamento)`;
+                document.getElementById('progressBar').style.width = `${Math.min(percentUsed, 100)}%`;
+                document.getElementById('progressBar').style.background = 'var(--success)';
+            } else {
+                diffElement.innerHTML = formatCurrency(0);
+                diffElement.className = 'text-primary';
+                document.getElementById('statusMessage').innerHTML = `🎯 Dentro do orçamento! (${Math.round(percentUsed)}% utilizado)`;
+                document.getElementById('progressBar').style.width = `${percentUsed}%`;
+                document.getElementById('progressBar').style.background = 'var(--primary)';
+            }
+
+            // Atualizar gráfico
+            if (costChart) costChart.destroy();
+            
+            const ctx = document.getElementById('costChart').getContext('2d');
+            costChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(categories),
+                    datasets: [
+                        {
+                            label: 'Planejado',
+                            data: Object.values(categories).map(c => c.planned),
+                            backgroundColor: 'rgba(79, 70, 229, 0.6)',
+                            borderRadius: 8
+                        },
+                        {
+                            label: 'Realizado',
+                            data: Object.values(categories).map(c => c.actual),
+                            backgroundColor: 'rgba(239, 68, 68, 0.6)',
+                            borderRadius: 8
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: { position: 'top' }
+                    }
+                }
+            });
+
+            // Lista detalhada
+            let detailedHtml = '';
+            for (const [category, values] of Object.entries(categories)) {
+                if (values.planned > 0 || values.actual > 0) {
+                    const diffCat = values.actual - values.planned;
+                    const diffClass = diffCat > 0 ? 'text-danger' : diffCat < 0 ? 'text-success' : '';
+                    const diffSymbol = diffCat > 0 ? '↑' : diffCat < 0 ? '↓' : '✓';
+                    detailedHtml += `
+                        <div class="card">
+                            <div class="flex justify-between align-center">
+                                <strong>${category}</strong>
+                                <div>
+                                    <small>Plan: ${formatCurrency(values.planned)}</small>
+                                    <strong class="${diffClass}" style="margin-left: 8px;">Real: ${formatCurrency(values.actual)}</strong>
+                                </div>
+                            </div>
+                            <div style="font-size: 12px; margin-top: 8px;" class="${diffClass}">
+                                ${diffSymbol} ${formatCurrency(Math.abs(diffCat))} ${diffCat > 0 ? 'acima' : diffCat < 0 ? 'abaixo' : 'dentro'} do planejado
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+            
+            if (detailedHtml === '') {
+                detailedHtml = '<div class="empty-state"><i class="fas fa-receipt"></i><p>Nenhum custo registrado ainda</p></div>';
+            }
+            document.getElementById('detailedList').innerHTML = detailedHtml;
+
+            // Top 3 maiores gastos
+            const allExpenses = [];
+            (itinerary || []).forEach(item => {
+                if (item.actual_cost && item.actual_cost > 0) {
+                    allExpenses.push({ title: item.title, cost: item.actual_cost, type: 'planejado' });
+                }
+            });
+            (posts || []).forEach(post => {
+                if (post.actual_cost && post.actual_cost > 0) {
+                    allExpenses.push({ title: post.caption?.substring(0, 30) || 'Postagem', cost: post.actual_cost, type: 'post' });
+                }
+            });
+            
+            allExpenses.sort((a, b) => b.cost - a.cost);
+            const top3 = allExpenses.slice(0, 3);
+            
+            let topHtml = '';
+            if (top3.length === 0) {
+                topHtml = '<p class="text-center" style="color: var(--gray-500);">Nenhum gasto registrado</p>';
+            } else {
+                top3.forEach((expense, index) => {
+                    topHtml += `
+                        <div class="flex justify-between align-center" style="margin-bottom: 12px;">
+                            <div>
+                                <span style="font-size: 20px; margin-right: 8px;">${index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}</span>
+                                <span>${escapeHtml(expense.title)}</span>
+                            </div>
+                            <strong>${formatCurrency(expense.cost)}</strong>
+                        </div>
+                    `;
+                });
+            }
+            document.getElementById('topExpenses').innerHTML = topHtml;
+
+            // Dica personalizada
+            let tipMessage = '';
+            if (totalActual > totalPlanned) {
+                const biggestCategory = Object.entries(categories).sort((a, b) => (b[1].actual - b[1].planned) - (a[1].actual - a[1].planned))[0];
+                tipMessage = `Você gastou ${formatCurrency(biggestCategory[1].actual - biggestCategory[1].planned)} a mais em ${biggestCategory[0]}. Tente reduzir esses custos nos próximos dias!`;
+            } else if (totalActual < totalPlanned) {
+                tipMessage = `Parabéns! Você está economizando. Que tal usar o dinheiro extra para um passeio especial? 🎉`;
+            } else {
+                tipMessage = `Você está no caminho certo! Continue acompanhando seus gastos para não sair do orçamento.`;
+            }
+            document.getElementById('tipMessage').innerHTML = tipMessage;
+
+            hideLoading();
+        }
+
+        async function init() {
+            await loadUserTrips();
+        }
+
+        init();
+    </script>
+    <style>
+        .progress-bar-container {
+            background: var(--gray-200);
+            border-radius: var(--radius-full);
+            height: 8px;
+            overflow: hidden;
+        }
+        .progress-bar {
+            height: 100%;
+            border-radius: var(--radius-full);
+            transition: width 0.5s ease;
+        }
+    </style>
+</body>
+</html>

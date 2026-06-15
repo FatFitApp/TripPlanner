@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+    <meta name="theme-color" content="#4F46E5">
+    <title>Trip Planner - Home</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="home-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="app-header-left">
+                <button class="menu-btn" id="menuBtn">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <h2>Trip Planner</h2>
+            </div>
+            <img src="https://via.placeholder.com/40" alt="Perfil" class="avatar" id="profileAvatar">
+        </header>
+
+        <!-- Main Content (Timeline) -->
+        <main class="main-content" id="mainContent">
+            <div id="timelineContainer">
+                <!-- Timeline posts will be loaded here -->
+                <div class="empty-state">
+                    <i class="fas fa-plane-departure"></i>
+                    <p>Nenhuma postagem ainda</p>
+                    <p style="font-size: 12px; margin-top: 8px;">Clique no botão 📸 para fazer sua primeira postagem!</p>
+                </div>
+            </div>
+        </main>
+
+        <!-- Bottom Navigation -->
+        <nav class="bottom-nav">
+            <button class="nav-item active" data-nav="timeline">
+                <i class="fas fa-home"></i>
+                <span>Timeline</span>
+            </button>
+            <button class="nav-item" data-nav="details">
+                <i class="fas fa-clipboard-list"></i>
+                <span>Detalhes</span>
+            </button>
+            <button class="nav-item nav-item-center" data-nav="register">
+                <i class="fas fa-camera"></i>
+                <span style="font-size: 10px;">Registrar</span>
+            </button>
+            <button class="nav-item" data-nav="costs">
+                <i class="fas fa-chart-line"></i>
+                <span>Custos</span>
+            </button>
+            <button class="nav-item" data-nav="chat">
+                <i class="fas fa-comment-dots"></i>
+                <span>Chat</span>
+            </button>
+        </nav>
+
+        <!-- Sidebar Menu -->
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <img src="https://via.placeholder.com/70" alt="Avatar" class="avatar" id="sidebarAvatar">
+                <h3 id="sidebarName">Carregando...</h3>
+                <p id="sidebarEmail">carregando@email.com</p>
+            </div>
+            <div class="sidebar-menu">
+                <div class="sidebar-item" data-action="profile">
+                    <i class="fas fa-user"></i>
+                    <span>Meu Perfil</span>
+                </div>
+                <div class="sidebar-item" data-action="create-trip">
+                    <i class="fas fa-plus-circle"></i>
+                    <span>Criar Viagem</span>
+                </div>
+                
+                <div class="sidebar-divider"></div>
+                <div class="sidebar-title">MINHAS VIAGENS</div>
+                <div id="sidebarTripsList">
+                    <div class="sidebar-item" style="opacity: 0.5;">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <span>Carregando...</span>
+                    </div>
+                </div>
+                
+                <div class="sidebar-divider"></div>
+                <div class="sidebar-item" data-action="search-friends">
+                    <i class="fas fa-search"></i>
+                    <span>Buscar Amigos</span>
+                </div>
+                <div class="sidebar-item danger" data-action="logout">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Sair</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Criar Postagem -->
+    <div id="createPostModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Nova Postagem</h3>
+                <button class="modal-close" onclick="closeModal('createPostModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="flex align-center gap-1" style="margin-bottom: 16px;">
+                    <img src="https://via.placeholder.com/40" class="avatar-sm" id="postAvatar">
+                    <strong id="postUserName">Carregando...</strong>
+                </div>
+                
+                <textarea id="postCaption" class="input-full" rows="3" placeholder="O que você está pensando?"></textarea>
+                
+                <div class="flex justify-between align-center" style="margin: 16px 0;">
+                    <span>Foto da postagem:</span>
+                    <input type="file" id="postImage" accept="image/*" style="display: none;">
+                    <button class="btn-secondary" onclick="document.getElementById('postImage').click()">
+                        <i class="fas fa-image"></i> Escolher foto
+                    </button>
+                </div>
+                
+                <div id="imagePreview" style="display: none; margin-bottom: 16px;">
+                    <img id="previewImg" style="width: 100%; border-radius: 12px;">
+                </div>
+                
+                <div class="input-group">
+                    <i class="fas fa-tag"></i>
+                    <select id="postTrip" class="input-full">
+                        <option value="">Sem viagem (postagem avulsa)</option>
+                    </select>
+                </div>
+                
+                <div class="input-group">
+                    <i class="fas fa-dollar-sign"></i>
+                    <input type="number" id="postCost" placeholder="Custo realizado (opcional)" step="0.01">
+                </div>
+                
+                <div class="rating-stars" id="postRating">
+                    <i class="far fa-star" data-rating="1"></i>
+                    <i class="far fa-star" data-rating="2"></i>
+                    <i class="far fa-star" data-rating="3"></i>
+                    <i class="far fa-star" data-rating="4"></i>
+                    <i class="far fa-star" data-rating="5"></i>
+                </div>
+                
+                <button class="btn-primary btn-full mt-2" onclick="submitPost()">
+                    <i class="fas fa-paper-plane"></i> Publicar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="loading-screen" class="loading-screen" style="display: none;">
+        <div class="loading-content">
+            <i class="fas fa-plane-departure fa-3x loading-icon"></i>
+            <div class="loading-dots"><span></span><span></span><span></span></div>
+            <p>Carregando...</p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+    <meta name="theme-color" content="#4F46E5">
+    <title>Trip Planner - Login</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+</head>
+<body class="auth-body">
+    <div class="auth-container">
+        <div class="auth-header">
+            <div class="auth-logo">
+                <i class="fas fa-plane-departure"></i>
+                <h1>Trip Planner</h1>
+            </div>
+            <p class="auth-subtitle">Organize suas viagens e compartilhe experiências</p>
+        </div>
+
+        <!-- Abas de Login/Cadastro -->
+        <div class="auth-tabs">
+            <button class="auth-tab active" data-tab="login">Entrar</button>
+            <button class="auth-tab" data-tab="register">Criar Conta</button>
+        </div>
+
+        <!-- Formulário de Login -->
+        <form id="login-form" class="auth-form active">
+            <div class="input-group">
+                <i class="fas fa-envelope"></i>
+                <input type="email" id="login-email" placeholder="E-mail" required>
+            </div>
+            <div class="input-group">
+                <i class="fas fa-lock"></i>
+                <input type="password" id="login-password" placeholder="Senha" required>
+            </div>
+            <button type="submit" class="btn-primary btn-full">Entrar</button>
+            <button type="button" id="forgot-password-btn" class="btn-link">Esqueci minha senha</button>
+        </form>
+
+        <!-- Formulário de Cadastro -->
+        <form id="register-form" class="auth-form">
+            <div class="input-group">
+                <i class="fas fa-user"></i>
+                <input type="text" id="register-name" placeholder="Nome completo" required>
+            </div>
+            <div class="input-group">
+                <i class="fas fa-envelope"></i>
+                <input type="email" id="register-email" placeholder="E-mail" required>
+            </div>
+            <div class="input-group">
+                <i class="fas fa-lock"></i>
+                <input type="password" id="register-password" placeholder="Senha (mínimo 6 caracteres)" required>
+            </div>
+            <div class="input-group">
+                <i class="fas fa-lock"></i>
+                <input type="password" id="register-confirm-password" placeholder="Confirmar senha" required>
+            </div>
+            <button type="submit" class="btn-primary btn-full">Criar Conta</button>
+        </form>
+
+        <!-- Modal de Recuperação de Senha -->
+        <div id="forgot-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Recuperar Senha</h3>
+                    <button class="modal-close">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p>Digite seu e-mail para receber o link de recuperação</p>
+                    <input type="email" id="forgot-email" placeholder="Seu e-mail" class="input-full">
+                    <button id="send-reset-btn" class="btn-primary btn-full">Enviar Link</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="loading-screen" style="display: none;">
+        <div class="loading-content">
+            <i class="fas fa-plane-departure fa-3x loading-icon"></i>
+            <div class="loading-dots">
+                <span></span><span></span><span></span>
+            </div>
+            <p>Carregando...</p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+    <script>
+        // ============================================
+        // TOAST NOTIFICATION
+        // ============================================
+        function showToast(message, type = 'info') {
+            const existingToast = document.querySelector('.toast');
+            if (existingToast) existingToast.remove();
+            
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.innerHTML = `
+                <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i>
+                <span>${message}</span>
+            `;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.classList.add('show');
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                    setTimeout(() => toast.remove(), 300);
+                }, 3000);
+            }, 10);
+        }
+
+        // ============================================
+        // LOADING CONTROLS
+        // ============================================
+        function showLoading() {
+            document.getElementById('loading-screen').style.display = 'flex';
+        }
+        
+        function hideLoading() {
+            document.getElementById('loading-screen').style.display = 'none';
+        }
+
+        // ============================================
+        // CHECK AUTH (redireciona se já logado)
+        // ============================================
+        async function checkAuthAndRedirect() {
+            const session = await db.auth.getSession();
+            if (session.data.session) {
+                window.location.href = 'home.html';
+            }
+        }
+
+        // ============================================
+        // AUTH TABS
+        // ============================================
+        document.querySelectorAll('.auth-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const tabName = tab.dataset.tab;
+                document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                document.querySelectorAll('.auth-form').forEach(form => form.classList.remove('active'));
+                document.getElementById(`${tabName}-form`).classList.add('active');
+            });
+        });
+
+        // ============================================
+        // LOGIN
+        // ============================================
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            
+            if (!email || !password) {
+                showToast('Preencha todos os campos', 'error');
+                return;
+            }
+            
+            showLoading();
+            const { data, error } = await db.auth.signInWithPassword({ email, password });
+            hideLoading();
+            
+            if (error) {
+                showToast(error.message, 'error');
+                return;
+            }
+            
+            showToast('Login realizado com sucesso!', 'success');
+            setTimeout(() => {
+                window.location.href = 'home.html';
+            }, 1000);
+        });
+
+        // ============================================
+        // REGISTER
+        // ============================================
+        document.getElementById('register-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('register-name').value;
+            const email = document.getElementById('register-email').value;
+            const password = document.getElementById('register-password').value;
+            const confirmPassword = document.getElementById('register-confirm-password').value;
+            
+            if (!name || !email || !password) {
+                showToast('Preencha todos os campos', 'error');
+                return;
+            }
+            
+            if (password !== confirmPassword) {
+                showToast('As senhas não coincidem', 'error');
+                return;
+            }
+            
+            if (password.length < 6) {
+                showToast('A senha deve ter no mínimo 6 caracteres', 'error');
+                return;
+            }
+            
+            showLoading();
+            const { data, error } = await db.auth.signUp({
+                email,
+                password,
+                options: {
+                    data: { name: name, avatar_url: null }
+                }
+            });
+            hideLoading();
+            
+            if (error) {
+                showToast(error.message, 'error');
+                return;
+            }
+            
+            showToast('Conta criada com sucesso! Faça login.', 'success');
+            document.querySelector('.auth-tab[data-tab="login"]').click();
+            document.getElementById('login-email').value = email;
+            document.getElementById('login-password').value = '';
+        });
+
+        // ============================================
+        // FORGOT PASSWORD MODAL
+        // ============================================
+        const forgotModal = document.getElementById('forgot-modal');
+        document.getElementById('forgot-password-btn').addEventListener('click', () => {
+            forgotModal.classList.add('open');
+        });
+        
+        document.querySelector('.modal-close').addEventListener('click', () => {
+            forgotModal.classList.remove('open');
+        });
+        
+        forgotModal.addEventListener('click', (e) => {
+            if (e.target === forgotModal) forgotModal.classList.remove('open');
+        });
+        
+        document.getElementById('send-reset-btn').addEventListener('click', async () => {
+            const email = document.getElementById('forgot-email').value;
+            if (!email) {
+                showToast('Digite seu e-mail', 'error');
+                return;
+            }
+            
+            showLoading();
+            const { error } = await db.auth.resetPasswordForEmail(email, {
+                redirectTo: window.location.origin + '/reset-password.html'
+            });
+            hideLoading();
+            
+            if (error) {
+                showToast(error.message, 'error');
+                return;
+            }
+            
+            showToast('Link de recuperação enviado! Verifique seu e-mail.', 'success');
+            forgotModal.classList.remove('open');
+            document.getElementById('forgot-email').value = '';
+        });
+
+        // ============================================
+        // INIT
+        // ============================================
+        checkAuthAndRedirect();
+    </script>
+</body>
+</html>
