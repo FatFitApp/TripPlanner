@@ -16,7 +16,7 @@
                 if (window.location.hostname.includes('github.io')) {
                     const pathParts = window.location.pathname.split('/');
                     if (pathParts.length > 1 && pathParts[1]) {
-                        const base = `/${pathParts[1]}/`;
+                        const base = '/' + pathParts[1] + '/';
                         const cleanPath = path.startsWith('/') ? path.substring(1) : path;
                         return base + cleanPath;
                     }
@@ -206,24 +206,28 @@
         }
 
         function showLoading() {
-            document.getElementById('loading-screen').style.display = 'flex';
+            const loading = document.getElementById('loading-screen');
+            if (loading) loading.style.display = 'flex';
         }
 
         function hideLoading() {
-            document.getElementById('loading-screen').style.display = 'none';
+            const loading = document.getElementById('loading-screen');
+            if (loading) loading.style.display = 'none';
         }
 
         function closeModal(modalId) {
-            document.getElementById(modalId).classList.remove('open');
+            const modal = document.getElementById(modalId);
+            if (modal) modal.classList.remove('open');
         }
 
         function openModal(modalId) {
-            document.getElementById(modalId).classList.add('open');
+            const modal = document.getElementById(modalId);
+            if (modal) modal.classList.add('open');
         }
 
         function goToTripDetail() {
             if (currentTripId) {
-                window.location.href = buildUrl(`trip-detail.html?id=${currentTripId}`);
+                window.location.href = buildUrl('trip-detail.html?id=' + currentTripId);
             } else {
                 showToast('Selecione uma viagem no menu', 'warning');
             }
@@ -231,7 +235,7 @@
 
         function goToChat() {
             if (currentTripId) {
-                window.location.href = buildUrl(`chat.html?id=${currentTripId}`);
+                window.location.href = buildUrl('chat.html?id=' + currentTripId);
             } else {
                 showToast('Selecione uma viagem no menu', 'warning');
             }
@@ -244,26 +248,37 @@
             showLoading();
             
             const session = await checkAuth();
-            if (!session) return;
+            if (!session) {
+                hideLoading();
+                return;
+            }
             currentUser = session.user;
             
             currentProfile = await getUserProfile(currentUser.id);
             
-            document.getElementById('profileName').textContent = currentProfile?.name || currentUser.user_metadata?.name || 'Viajante';
-            document.getElementById('profileEmail').textContent = currentUser.email;
-            document.getElementById('profileBio').textContent = currentProfile?.bio || 'Aventureiro apaixonado por viagens! 🌍';
+            const nameEl = document.getElementById('profileName');
+            const emailEl = document.getElementById('profileEmail');
+            const bioEl = document.getElementById('profileBio');
+            const avatarEl = document.getElementById('profileAvatar');
             
-            if (currentProfile?.avatar_url) {
-                document.getElementById('profileAvatar').src = currentProfile.avatar_url;
+            if (nameEl) nameEl.textContent = currentProfile?.name || currentUser.user_metadata?.name || 'Viajante';
+            if (emailEl) emailEl.textContent = currentUser.email;
+            if (bioEl) bioEl.textContent = currentProfile?.bio || 'Aventureiro apaixonado por viagens! 🌍';
+            
+            if (currentProfile?.avatar_url && avatarEl) {
+                avatarEl.src = currentProfile.avatar_url;
             }
             
-            // Carregar estatísticas
             const { count: tripCount } = await db.from('trips').select('*', { count: 'exact', head: true }).eq('user_id', currentUser.id);
             const { count: postCount } = await db.from('social_posts').select('*', { count: 'exact', head: true }).eq('user_id', currentUser.id);
             
-            document.getElementById('tripCount').textContent = tripCount || 0;
-            document.getElementById('postCount').textContent = postCount || 0;
-            document.getElementById('friendCount').textContent = '0';
+            const tripCountEl = document.getElementById('tripCount');
+            const postCountEl = document.getElementById('postCount');
+            const friendCountEl = document.getElementById('friendCount');
+            
+            if (tripCountEl) tripCountEl.textContent = tripCount || 0;
+            if (postCountEl) postCountEl.textContent = postCount || 0;
+            if (friendCountEl) friendCountEl.textContent = '0';
             
             await loadUserPosts();
             await loadUserTrips();
@@ -272,7 +287,7 @@
         }
 
         // ============================================
-        // CARREGAR POSTS DO USUÁRIO (COM EXCLUIR)
+        // CARREGAR POSTS DO USUÁRIO
         // ============================================
         async function loadUserPosts() {
             const { data: posts, error } = await db
@@ -283,45 +298,61 @@
                 .limit(12);
             
             const container = document.getElementById('userPosts');
+            if (!container) return;
             
             if (error || !posts || posts.length === 0) {
                 container.innerHTML = '<div class="empty-state" style="grid-column: span 3;"><p>Nenhuma postagem ainda</p></div>';
                 return;
             }
             
-            container.innerHTML = posts.map(post => `
-                <div class="post-item" style="position: relative; border-radius: var(--radius-sm); overflow: hidden; background: var(--gray-50);">
-                    ${post.image_url ? 
-                        `<img src="${post.image_url}" style="width: 100%; aspect-ratio: 1; object-fit: cover;">` : 
-                        `<div style="width: 100%; aspect-ratio: 1; background: var(--gray-200); display: flex; align-items: center; justify-content: center;">
-                            <i class="fas fa-image" style="font-size: 24px; color: var(--gray-400);"></i>
-                        </div>`
-                    }
-                    <div class="post-overlay" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); opacity: 0; transition: opacity var(--transition-fast); display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer;">
-                        <button class="btn-icon" onclick="event.stopPropagation(); openDeletePostModal('${post.id}')" style="background: rgba(255,255,255,0.9); padding: 8px 12px; border-radius: var(--radius-sm);">
-                            <i class="fas fa-trash" style="color: var(--danger);"></i>
-                        </button>
+            let html = '';
+            for (const post of posts) {
+                const postId = post.id;
+                let imageUrl = post.image_url;
+                const actualCost = post.actual_cost;
+                const rating = post.rating;
+                
+                // Verificar se a URL é válida
+                const hasValidImage = imageUrl && imageUrl !== '' && imageUrl !== 'null' && !imageUrl.includes('${');
+                
+                html += `
+                    <div class="post-item" style="position: relative; border-radius: var(--radius-sm); overflow: hidden; background: var(--gray-50);">
+                        ${hasValidImage ? 
+                            `<img src="${imageUrl}" style="width: 100%; aspect-ratio: 1; object-fit: cover;" onerror="this.parentElement.innerHTML='<div style=\\'width:100%;aspect-ratio:1;background:var(--gray-200);display:flex;align-items:center;justify-content:center;\\'><i class=\\'fas fa-image\\' style=\\'font-size:24px;color:var(--gray-400);\\'></i></div>'">` : 
+                            `<div style="width: 100%; aspect-ratio: 1; background: var(--gray-200); display: flex; align-items: center; justify-content: center;">
+                                <i class="fas fa-image" style="font-size: 24px; color: var(--gray-400);"></i>
+                            </div>`
+                        }
+                        <div class="post-overlay" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); opacity: 0; transition: opacity var(--transition-fast); display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer;">
+                            <button class="btn-icon" onclick="event.stopPropagation(); openDeletePostModal('${postId}')" style="background: rgba(255,255,255,0.9); padding: 8px 12px; border-radius: var(--radius-sm);">
+                                <i class="fas fa-trash" style="color: var(--danger);"></i>
+                            </button>
+                        </div>
+                        ${actualCost ? `<div style="position: absolute; bottom: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border-radius: 12px; padding: 2px 8px; font-size: 10px;">💰 ${formatCurrency(actualCost)}</div>` : ''}
+                        ${rating ? `<div style="position: absolute; top: 4px; left: 4px; background: rgba(0,0,0,0.7); color: var(--warning); border-radius: 12px; padding: 2px 8px; font-size: 10px;">⭐ ${rating}</div>` : ''}
                     </div>
-                    ${post.actual_cost ? `<div style="position: absolute; bottom: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border-radius: 12px; padding: 2px 8px; font-size: 10px;">💰 ${formatCurrency(post.actual_cost)}</div>` : ''}
-                    ${post.rating ? `<div style="position: absolute; top: 4px; left: 4px; background: rgba(0,0,0,0.7); color: var(--warning); border-radius: 12px; padding: 2px 8px; font-size: 10px;">⭐ ${post.rating}</div>` : ''}
-                </div>
-            `).join('');
+                `;
+            }
+            
+            container.innerHTML = html;
 
-            // Adicionar evento de hover para mostrar o overlay
             document.querySelectorAll('.post-item').forEach(item => {
                 item.addEventListener('mouseenter', () => {
-                    item.querySelector('.post-overlay').style.opacity = '1';
+                    const overlay = item.querySelector('.post-overlay');
+                    if (overlay) overlay.style.opacity = '1';
                 });
                 item.addEventListener('mouseleave', () => {
-                    item.querySelector('.post-overlay').style.opacity = '0';
+                    const overlay = item.querySelector('.post-overlay');
+                    if (overlay) overlay.style.opacity = '0';
                 });
-                // Para mobile: toque mostra o overlay
                 item.addEventListener('click', () => {
                     const overlay = item.querySelector('.post-overlay');
-                    if (overlay.style.opacity === '1') {
-                        overlay.style.opacity = '0';
-                    } else {
-                        overlay.style.opacity = '1';
+                    if (overlay) {
+                        if (overlay.style.opacity === '1') {
+                            overlay.style.opacity = '0';
+                        } else {
+                            overlay.style.opacity = '1';
+                        }
                     }
                 });
             });
@@ -331,8 +362,10 @@
         // ABRIR MODAL DE EXCLUIR POST
         // ============================================
         function openDeletePostModal(postId) {
+            console.log('🗑️ Abrindo modal para excluir post:', postId);
             deletePostId = postId;
-            document.getElementById('deletePostId').value = postId;
+            const input = document.getElementById('deletePostId');
+            if (input) input.value = postId;
             openModal('deletePostModal');
         }
 
@@ -340,133 +373,141 @@
         // CONFIRMAR EXCLUIR POST
         // ============================================
         async function confirmDeletePost() {
-            const postId = document.getElementById('deletePostId').value;
-            if (!postId) return;
+            console.log('✅ Confirmando exclusão do post');
             
-            showLoading();
+            const input = document.getElementById('deletePostId');
+            const postId = input ? input.value : null;
             
-            // Buscar a postagem para pegar a URL da imagem
-            const { data: post } = await db
-                .from('social_posts')
-                .select('image_url')
-                .eq('id', postId)
-                .single();
+            console.log('📝 Post ID:', postId);
             
-            // Excluir do banco
-            const { error } = await db
-                .from('social_posts')
-                .delete()
-                .eq('id', postId)
-                .eq('user_id', currentUser.id);
-            
-            if (error) {
-                hideLoading();
-                showToast('Erro ao excluir postagem', 'error');
+            if (!postId) {
+                showToast('Nenhum post selecionado', 'error');
                 return;
             }
             
-            // Excluir imagem do storage se existir
-            if (post?.image_url) {
-                try {
-                    const urlParts = post.image_url.split('/');
-                    const filePath = urlParts.slice(urlParts.indexOf('post-images')).join('/');
-                    if (filePath) {
-                        await db.storage.from('post-images').remove([filePath]);
-                    }
-                } catch (storageError) {
-                    console.warn('Erro ao excluir imagem do storage:', storageError);
+            showLoading();
+            
+            try {
+                const { data: post, error: fetchError } = await db
+                    .from('social_posts')
+                    .select('image_url')
+                    .eq('id', postId)
+                    .single();
+                
+                if (fetchError) {
+                    console.error('❌ Erro ao buscar post:', fetchError);
+                    hideLoading();
+                    showToast('Erro ao buscar postagem', 'error');
+                    return;
                 }
+                
+                console.log('📸 Post encontrado:', post);
+                
+                const { error: deleteError } = await db
+                    .from('social_posts')
+                    .delete()
+                    .eq('id', postId)
+                    .eq('user_id', currentUser.id);
+                
+                if (deleteError) {
+                    console.error('❌ Erro ao excluir post:', deleteError);
+                    hideLoading();
+                    showToast('Erro ao excluir postagem: ' + deleteError.message, 'error');
+                    return;
+                }
+                
+                console.log('✅ Post excluído do banco');
+                
+                if (post?.image_url) {
+                    try {
+                        const urlParts = post.image_url.split('/');
+                        const bucketIndex = urlParts.indexOf('post-images');
+                        if (bucketIndex !== -1) {
+                            const filePath = urlParts.slice(bucketIndex + 1).join('/');
+                            console.log('📁 Excluindo imagem:', filePath);
+                            if (filePath) {
+                                await db.storage.from('post-images').remove([filePath]);
+                            }
+                        }
+                    } catch (storageError) {
+                        console.warn('⚠️ Erro ao excluir imagem do storage:', storageError);
+                    }
+                }
+                
+                hideLoading();
+                closeModal('deletePostModal');
+                showToast('Postagem excluída!', 'success');
+                
+                await loadUserPosts();
+                
+                const { count: postCount } = await db
+                    .from('social_posts')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('user_id', currentUser.id);
+                
+                const postCountEl = document.getElementById('postCount');
+                if (postCountEl) postCountEl.textContent = postCount || 0;
+                
+                console.log('✅ Processo concluído');
+                
+            } catch (error) {
+                console.error('❌ Erro inesperado:', error);
+                hideLoading();
+                showToast('Erro ao excluir postagem', 'error');
             }
-            
-            hideLoading();
-            closeModal('deletePostModal');
-            showToast('Postagem excluída!', 'success');
-            
-            await loadUserPosts();
-            
-            const { count: postCount } = await db.from('social_posts').select('*', { count: 'exact', head: true }).eq('user_id', currentUser.id);
-            document.getElementById('postCount').textContent = postCount || 0;
         }
 
-async function loadUserTrips() {
-    const { data: trips, error } = await db
-        .from('trips')
-        .select('*')
-        .eq('user_id', currentUser.id)
-        .order('start_date', { ascending: false });
-    
-    const container = document.getElementById('userTrips');
-    
-    if (error || !trips || trips.length === 0) {
-        container.innerHTML = `<div class="empty-state"><p>Nenhuma viagem criada ainda</p><button class="btn-primary" onclick="window.location.href=buildUrl('home.html?action=create-trip')">Criar primeira viagem</button></div>`;
-        return;
-    }
-    
-    let html = '';
-    for (const trip of trips) {
-        const tripId = trip.id;
-        const title = escapeHtml(trip.title);
-        const startDate = formatDate(trip.start_date);
-        const endDate = formatDate(trip.end_date);
-        const detailUrl = buildUrl('trip-detail.html?id=' + tripId);
-        
-        html += `
-            <div class="flex justify-between align-center" style="margin-bottom: 12px; padding: 8px; background: var(--gray-50); border-radius: 8px;">
-                <div>
-                    <strong>${title}</strong>
-                    <div style="font-size: 12px; color: var(--gray-500);">${startDate} - ${endDate}</div>
-                </div>
-                <button class="btn-secondary" onclick="window.location.href='${detailUrl}'">
-                    <i class="fas fa-arrow-right"></i>
-                </button>
-            </div>
-        `;
-    }
-    
-    container.innerHTML = html;
-}
-    const { data: trips, error } = await db
-        .from('trips')
-        .select('*')
-        .eq('user_id', currentUser.id)
-        .order('start_date', { ascending: false });
-    
-    const container = document.getElementById('userTrips');
-    
-    if (error || !trips || trips.length === 0) {
-        container.innerHTML = `<div class="empty-state"><p>Nenhuma viagem criada ainda</p><button class="btn-primary" onclick="window.location.href=buildUrl('home.html?action=create-trip')">Criar primeira viagem</button></div>`;
-        return;
-    }
-    
-    let html = '';
-    for (const trip of trips) {
-        const tripId = trip.id;
-        const title = escapeHtml(trip.title);
-        const startDate = formatDate(trip.start_date);
-        const endDate = formatDate(trip.end_date);
-        const detailUrl = buildUrl('trip-detail.html?id=' + tripId);
-        
-        html += `
-            <div class="flex justify-between align-center" style="margin-bottom: 12px; padding: 8px; background: var(--gray-50); border-radius: 8px;">
-                <div>
-                    <strong>${title}</strong>
-                    <div style="font-size: 12px; color: var(--gray-500);">${startDate} - ${endDate}</div>
-                </div>
-                <button class="btn-secondary" onclick="window.location.href='${detailUrl}'">
-                    <i class="fas fa-arrow-right"></i>
-                </button>
-            </div>
-        `;
-    }
-    
-    container.innerHTML = html;
+        // ============================================
+        // CARREGAR VIAGENS DO USUÁRIO
+        // ============================================
+        async function loadUserTrips() {
+            const { data: trips, error } = await db
+                .from('trips')
+                .select('*')
+                .eq('user_id', currentUser.id)
+                .order('start_date', { ascending: false });
+            
+            const container = document.getElementById('userTrips');
+            if (!container) return;
+            
+            if (error || !trips || trips.length === 0) {
+                container.innerHTML = `<div class="empty-state"><p>Nenhuma viagem criada ainda</p><button class="btn-primary" onclick="window.location.href=buildUrl('home.html?action=create-trip')">Criar primeira viagem</button></div>`;
+                return;
+            }
+            
+            let html = '';
+            for (const trip of trips) {
+                const tripId = trip.id;
+                const title = escapeHtml(trip.title);
+                const startDate = formatDate(trip.start_date);
+                const endDate = formatDate(trip.end_date);
+                const detailUrl = buildUrl('trip-detail.html?id=' + tripId);
+                
+                html += `
+                    <div class="flex justify-between align-center" style="margin-bottom: 12px; padding: 8px; background: var(--gray-50); border-radius: 8px;">
+                        <div>
+                            <strong>${title}</strong>
+                            <div style="font-size: 12px; color: var(--gray-500);">${startDate} - ${endDate}</div>
+                        </div>
+                        <button class="btn-secondary" onclick="window.location.href='${detailUrl}'">
+                            <i class="fas fa-arrow-right"></i>
+                        </button>
+                    </div>
+                `;
+            }
+            
+            container.innerHTML = html;
+        }
 
         // ============================================
         // SALVAR PERFIL
         // ============================================
         async function saveProfile() {
-            const name = document.getElementById('editName').value;
-            const bio = document.getElementById('editBio').value;
+            const nameInput = document.getElementById('editName');
+            const bioInput = document.getElementById('editBio');
+            
+            const name = nameInput ? nameInput.value : '';
+            const bio = bioInput ? bioInput.value : '';
             
             if (!name) {
                 showToast('Nome é obrigatório', 'error');
@@ -521,20 +562,31 @@ async function loadUserTrips() {
         // EVENT LISTENERS
         // ============================================
         function setupEventListeners() {
-            document.getElementById('editProfileBtn').addEventListener('click', () => {
-                document.getElementById('editName').value = currentProfile?.name || '';
-                document.getElementById('editBio').value = currentProfile?.bio || '';
-                openModal('editModal');
-            });
+            const editBtn = document.getElementById('editProfileBtn');
+            if (editBtn) {
+                editBtn.addEventListener('click', () => {
+                    const nameInput = document.getElementById('editName');
+                    const bioInput = document.getElementById('editBio');
+                    if (nameInput) nameInput.value = currentProfile?.name || '';
+                    if (bioInput) bioInput.value = currentProfile?.bio || '';
+                    openModal('editModal');
+                });
+            }
             
-            document.getElementById('changeAvatarBtn').addEventListener('click', () => {
-                document.getElementById('avatarInput').click();
-            });
+            const avatarBtn = document.getElementById('changeAvatarBtn');
+            if (avatarBtn) {
+                avatarBtn.addEventListener('click', () => {
+                    document.getElementById('avatarInput')?.click();
+                });
+            }
             
-            document.getElementById('avatarInput').addEventListener('change', (e) => {
-                const file = e.target.files[0];
-                if (file) changeAvatar(file);
-            });
+            const avatarInput = document.getElementById('avatarInput');
+            if (avatarInput) {
+                avatarInput.addEventListener('change', (e) => {
+                    const file = e.target.files[0];
+                    if (file) changeAvatar(file);
+                });
+            }
         }
 
         // ============================================
@@ -575,4 +627,4 @@ async function loadUserTrips() {
         }
     </style>
 </body>
-</html> 
+</html>
