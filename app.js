@@ -1,6 +1,6 @@
 // ============================================
 // TRIP PLANNER - APP.JS (VERSÃO COMPLETA)
-// Lógica Principal com todas as telas integradas
+// Com sistema de convites e colaboração
 // ============================================
 
 // ============================================
@@ -129,6 +129,15 @@ async function checkAuthAndLoad() {
     currentUser = session.user;
     console.log('✅ Usuário autenticado:', currentUser.email);
     
+    // Verificar se há convite pendente
+    const pendingToken = sessionStorage.getItem('pendingInviteToken');
+    if (pendingToken) {
+        sessionStorage.removeItem('pendingInviteToken');
+        // Redirecionar para join.html com o token
+        window.location.href = `join.html?token=${pendingToken}`;
+        return;
+    }
+    
     await loadUserProfile();
     await loadSidebarInfo();
     await loadTripsForSidebar();
@@ -179,32 +188,63 @@ async function loadTripsForSidebar() {
     console.log('👤 ID do usuário:', currentUser.id);
     
     try {
-        const { data, error } = await db
+        // Buscar viagens onde o usuário é DONO
+        const { data: ownTrips, error: ownError } = await db
             .from('trips')
             .select('*')
             .eq('user_id', currentUser.id);
         
-        console.log('📊 Resultado da busca:', data);
-        
-        if (error) {
-            console.error('❌ Erro na busca:', error);
-            const container = document.getElementById('sidebarTripsList');
-            if (container) {
-                container.innerHTML = `
-                    <div class="sidebar-item" style="color: var(--danger);">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        <span>Erro: ${error.message}</span>
-                    </div>
-                `;
-            }
-            return;
+        if (ownError) {
+            console.error('❌ Erro ao buscar viagens próprias:', ownError);
         }
+        
+        // Buscar viagens onde o usuário é MEMBRO APROVADO
+        const { data: memberTrips, error: memberError } = await db
+            .from('trip_members')
+            .select(`
+                trip_id,
+                trips:trips (*)
+            `)
+            .eq('user_id', currentUser.id)
+            .eq('status', 'approved');
+        
+        if (memberError) {
+            console.error('❌ Erro ao buscar viagens como membro:', memberError);
+        }
+        
+        // Combinar viagens
+        let allTrips = [];
+        
+        if (ownTrips && ownTrips.length > 0) {
+            allTrips = [...allTrips, ...ownTrips.map(t => ({ ...t, role: 'owner' }))];
+        }
+        
+        if (memberTrips && memberTrips.length > 0) {
+            const memberTripData = memberTrips.map(m => ({ ...m.trips, role: 'member' }));
+            allTrips = [...allTrips, ...memberTripData];
+        }
+        
+        // Remover duplicatas
+        const uniqueTrips = [];
+        const seenIds = new Set();
+        for (const trip of allTrips) {
+            if (trip && trip.id && !seenIds.has(trip.id)) {
+                seenIds.add(trip.id);
+                uniqueTrips.push(trip);
+            }
+        }
+        
+        // Ordenar por data de criação
+        const sortedTrips = uniqueTrips.sort((a, b) => {
+            return new Date(b.created_at) - new Date(a.created_at);
+        });
+        
+        console.log(`✅ ${sortedTrips.length} viagens encontradas`);
         
         const container = document.getElementById('sidebarTripsList');
         if (!container) return;
         
-        if (!data || data.length === 0) {
-            console.log('📭 Nenhuma viagem encontrada');
+        if (sortedTrips.length === 0) {
             container.innerHTML = `
                 <div class="sidebar-item" data-action="create-trip">
                     <i class="fas fa-plus-circle"></i>
@@ -214,17 +254,11 @@ async function loadTripsForSidebar() {
             return;
         }
         
-        const sortedTrips = [...data].sort((a, b) => {
-            return new Date(b.created_at) - new Date(a.created_at);
-        });
-        
-        console.log(`✅ ${sortedTrips.length} viagens encontradas`);
-        
         container.innerHTML = sortedTrips.map(trip => `
             <div class="sidebar-item" data-trip-id="${trip.id}" data-action="select-trip" style="cursor: pointer;">
                 <i class="fas fa-map-marker-alt"></i>
                 <div style="flex: 1;">
-                    <div><strong>${escapeHtml(trip.title)}</strong></div>
+                    <div><strong>${escapeHtml(trip.title)}</strong> ${trip.role === 'owner' ? '👑' : '🤝'}</div>
                     <div style="font-size: 11px; color: var(--gray-500);">
                         ${trip.start_date ? formatDate(trip.start_date) : 'Data não definida'} 
                         ${trip.end_date ? `- ${formatDate(trip.end_date)}` : ''}
@@ -233,6 +267,7 @@ async function loadTripsForSidebar() {
             </div>
         `).join('');
         
+        // Adicionar event listeners
         document.querySelectorAll('.sidebar-item[data-action="select-trip"]').forEach(item => {
             item.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -266,12 +301,33 @@ async function loadTripsForSidebar() {
 }
 
 // ============================================
-// TIMELINE
+// TIMELINE (Atualizada para mostrar posts de todas as viagens)
 // ============================================
 async function loadTimeline() {
     showLoading();
     
-    const { data: posts, error } = await db
+    // Buscar IDs das viagens que o usuário participa
+    const { data: memberTrips } = await db
+        .from('trip_members')
+        .select('trip_id')
+        .eq('user_id', currentUser.id)
+        .eq('status', 'approved');
+    
+    const memberTripIds = (memberTrips || []).map(m => m.trip_id);
+    
+    // Buscar viagens próprias
+    const { data: ownTrips } = await db
+        .from('trips')
+        .select('id')
+        .eq('user_id', currentUser.id);
+    
+    const ownTripIds = (ownTrips || []).map(t => t.id);
+    
+    // Combinar todos os IDs
+    const allTripIds = [...new Set([...memberTripIds, ...ownTripIds])];
+    
+    // Buscar posts
+    let query = db
         .from('social_posts')
         .select(`
             *,
@@ -280,6 +336,13 @@ async function loadTimeline() {
         `)
         .order('created_at', { ascending: false })
         .limit(50);
+    
+    // Se tiver IDs de viagens, filtrar por elas
+    if (allTripIds.length > 0) {
+        query = query.in('trip_id', allTripIds);
+    }
+    
+    const { data: posts, error } = await query;
     
     const container = document.getElementById('timelineContainer');
     
@@ -427,14 +490,14 @@ async function createTrip() {
         currentUser = session.user;
     }
     
-    const { error } = await db.from('trips').insert({
+    const { data, error } = await db.from('trips').insert({
         user_id: currentUser.id,
         title: title,
         destination: destination || null,
         start_date: startISO,
         end_date: endISO,
         created_at: new Date()
-    });
+    }).select();
     
     hideLoading();
     
@@ -444,13 +507,100 @@ async function createTrip() {
     }
     
     showToast('Viagem criada com sucesso!', 'success');
+    
+    // Adicionar o criador como membro aprovado automaticamente
+    if (data && data[0]) {
+        await db.from('trip_members').insert({
+            trip_id: data[0].id,
+            user_id: currentUser.id,
+            status: 'approved',
+            invited_at: new Date()
+        });
+        currentTripId = data[0].id;
+    }
+    
     await loadTripsForSidebar();
 }
 
 // ============================================
-// EVENT LISTENERS (COM TODOS OS REDIRECIONAMENTOS)
+// ADD COMMENT
+// ============================================
+async function addComment(postId) {
+    const input = document.getElementById(`comment-input-${postId}`);
+    if (!input) return;
+    
+    const comment = input.value.trim();
+    if (!comment) {
+        showToast('Digite um comentário', 'warning');
+        return;
+    }
+    
+    showLoading();
+    
+    const { error } = await db.from('post_comments').insert({
+        post_id: postId,
+        user_id: currentUser.id,
+        comment: comment,
+        created_at: new Date()
+    });
+    
+    hideLoading();
+    
+    if (error) {
+        showToast('Erro ao comentar', 'error');
+        return;
+    }
+    
+    input.value = '';
+    showToast('Comentário adicionado!', 'success');
+    await loadTimeline();
+}
+
+// ============================================
+// LIKE POST
+// ============================================
+async function likePost(postId) {
+    showLoading();
+    
+    // Verificar se já curtiu
+    const { data: existing } = await db
+        .from('post_likes')
+        .select('id')
+        .eq('post_id', postId)
+        .eq('user_id', currentUser.id)
+        .single();
+    
+    if (existing) {
+        // Remover like
+        await db
+            .from('post_likes')
+            .delete()
+            .eq('id', existing.id);
+        
+        // Decrementar likes no post
+        await db.rpc('decrement_post_likes', { post_id: postId });
+    } else {
+        // Adicionar like
+        await db.from('post_likes').insert({
+            post_id: postId,
+            user_id: currentUser.id,
+            created_at: new Date()
+        });
+        
+        // Incrementar likes no post
+        await db.rpc('increment_post_likes', { post_id: postId });
+    }
+    
+    hideLoading();
+    await loadTimeline();
+}
+
+// ============================================
+// EVENT LISTENERS
 // ============================================
 function setupEventListeners() {
+    console.log('🎯 Configurando event listeners...');
+    
     // Menu lateral
     const menuBtn = document.getElementById('menuBtn');
     const sidebar = document.getElementById('sidebar');
@@ -467,7 +617,7 @@ function setupEventListeners() {
         overlay.addEventListener('click', closeSidebar);
     }
     
-    // Bottom navigation - CORRIGIDO COM REDIRECIONAMENTOS
+    // Bottom navigation
     document.querySelectorAll('.nav-item').forEach(item => {
         item.addEventListener('click', async () => {
             const nav = item.dataset.nav;
@@ -482,21 +632,34 @@ function setupEventListeners() {
                 await loadTimeline();
             } 
             else if (nav === 'register') {
-                // Carregar viagens para o select
-                const { data: trips } = await db
+                // Carregar viagens para o select (apenas as que o usuário pode postar)
+                const { data: ownTrips } = await db
                     .from('trips')
                     .select('id, title')
                     .eq('user_id', currentUser.id);
                 
+                const { data: memberTrips } = await db
+                    .from('trip_members')
+                    .select('trip_id, trips:trips (id, title)')
+                    .eq('user_id', currentUser.id)
+                    .eq('status', 'approved');
+                
+                let allTrips = [];
+                if (ownTrips) allTrips = [...allTrips, ...ownTrips];
+                if (memberTrips) {
+                    memberTrips.forEach(m => {
+                        if (m.trips) allTrips.push(m.trips);
+                    });
+                }
+                
                 const select = document.getElementById('postTrip');
                 if (select) {
                     select.innerHTML = '<option value="">Sem viagem (postagem avulsa)</option>' +
-                        (trips || []).map(t => `<option value="${t.id}">✈️ ${escapeHtml(t.title)}</option>`).join('');
+                        (allTrips || []).map(t => `<option value="${t.id}">✈️ ${escapeHtml(t.title)}</option>`).join('');
                 }
                 openModal('createPostModal');
             }
             else if (nav === 'details') {
-                // REDIRECIONA PARA DETALHES DA VIAGEM
                 if (currentTripId) {
                     window.location.href = `trip-detail.html?id=${currentTripId}`;
                 } else {
@@ -504,7 +667,6 @@ function setupEventListeners() {
                 }
             }
             else if (nav === 'costs') {
-                // REDIRECIONA PARA TELA DE CUSTOS
                 if (currentTripId) {
                     window.location.href = `costs.html?id=${currentTripId}`;
                 } else {
@@ -512,7 +674,6 @@ function setupEventListeners() {
                 }
             }
             else if (nav === 'chat') {
-                // REDIRECIONA PARA CHAT
                 if (currentTripId) {
                     window.location.href = `chat.html?id=${currentTripId}`;
                 } else {
@@ -522,14 +683,13 @@ function setupEventListeners() {
         });
     });
     
-    // Sidebar actions - CORRIGIDO COM REDIRECIONAMENTOS
+    // Sidebar actions
     document.querySelectorAll('.sidebar-item').forEach(item => {
         item.addEventListener('click', async () => {
             const action = item.dataset.action;
             const tripId = item.dataset.tripId;
             
             if (action === 'profile') {
-                // REDIRECIONA PARA PERFIL
                 window.location.href = 'profile.html';
             } 
             else if (action === 'create-trip') {
@@ -562,6 +722,18 @@ function setupEventListeners() {
 }
 
 // ============================================
+// RPC FUNCTIONS (para likes)
+// ============================================
+// Estas funções precisam ser criadas no Supabase SQL Editor
+
+// ============================================
 // INIT
 // ============================================
 checkAuthAndLoad();
+
+// Expor funções globalmente
+window.submitPost = submitPost;
+window.addComment = addComment;
+window.likePost = likePost;
+window.createTrip = createTrip;
+window.loadTimeline = loadTimeline;

@@ -266,5 +266,49 @@
         // ============================================
         checkAuthAndRedirect();
     </script>
+        <script>
+        // ============================================
+        // REDIRECIONAR APÓS LOGIN
+        // ============================================
+        async function checkRedirect() {
+            const params = new URLSearchParams(window.location.search);
+            const redirect = params.get('redirect');
+            const token = params.get('token');
+            
+            if (redirect && token) {
+                // Verificar se já está logado
+                const session = await db.auth.getSession();
+                if (session.data.session) {
+                    window.location.href = `${redirect}?token=${token}`;
+                } else {
+                    // Salvar para depois do login
+                    sessionStorage.setItem('pendingInviteToken', token);
+                    sessionStorage.setItem('pendingInviteRedirect', redirect);
+                }
+            }
+        }
+        
+        // Adicionar no final do login
+        const originalLogin = document.getElementById('login-form')?.addEventListener;
+        if (document.getElementById('login-form')) {
+            const form = document.getElementById('login-form');
+            const originalSubmit = form.onsubmit;
+            form.onsubmit = async (e) => {
+                e.preventDefault();
+                // ... código de login existente ...
+                
+                // Após login bem-sucedido, verificar redirecionamento
+                const token = sessionStorage.getItem('pendingInviteToken');
+                const redirect = sessionStorage.getItem('pendingInviteRedirect');
+                if (token && redirect) {
+                    sessionStorage.removeItem('pendingInviteToken');
+                    sessionStorage.removeItem('pendingInviteRedirect');
+                    window.location.href = `${redirect}?token=${token}`;
+                }
+            };
+        }
+        
+        checkRedirect();
+    </script>
 </body>
 </html>

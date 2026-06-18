@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>Aceitar Convite - Trip Planner</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="home-container">
+        <header class="app-header">
+            <button class="menu-btn" onclick="window.location.href='home.html'">
+                <i class="fas fa-arrow-left"></i>
+            </button>
+            <h2>Aceitar Convite</h2>
+            <div style="width: 40px;"></div>
+        </header>
+
+        <main class="main-content" id="mainContent">
+            <!-- Estado: Carregando -->
+            <div id="loadingState" class="card" style="text-align: center; padding: 40px;">
+                <i class="fas fa-spinner fa-spin" style="font-size: 48px; color: var(--primary);"></i>
+                <p style="margin-top: 16px;">Verificando convite...</p>
+            </div>
+
+            <!-- Estado: Convite Válido -->
+            <div id="validState" class="card" style="display: none; text-align: center; padding: 30px;">
+                <i class="fas fa-envelope-open-text" style="font-size: 48px; color: var(--success);"></i>
+                <h3 style="margin: 16px 0 8px;">Você foi convidado!</h3>
+                <p style="color: var(--gray-500);" id="inviteInfo">Carregando informações da viagem...</p>
+                
+                <div class="card" style="background: var(--gray-50); margin: 16px 0; text-align: left;">
+                    <p><strong>✈️ Viagem:</strong> <span id="tripTitleDisplay">Carregando...</span></p>
+                    <p><strong>📍 Destino:</strong> <span id="tripDestinationDisplay">Carregando...</span></p>
+                    <p><strong>📅 Datas:</strong> <span id="tripDatesDisplay">Carregando...</span></p>
+                    <p><strong>👤 Criado por:</strong> <span id="tripCreatorDisplay">Carregando...</span></p>
+                    <p><strong>📋 Atividades:</strong> <span id="activityCountDisplay">Carregando...</span></p>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <button class="btn-primary btn-full" onclick="acceptInvite()">
+                        <i class="fas fa-check"></i> Solicitar Participação
+                    </button>
+                    <button class="btn-secondary btn-full" onclick="window.location.href='home.html'">
+                        <i class="fas fa-times"></i> Cancelar
+                    </button>
+                </div>
+            </div>
+
+            <!-- Estado: Convite Inválido -->
+            <div id="invalidState" class="card" style="display: none; text-align: center; padding: 40px;">
+                <i class="fas fa-exclamation-triangle" style="font-size: 48px; color: var(--danger);"></i>
+                <h3 style="margin: 16px 0 8px;">Convite Inválido</h3>
+                <p style="color: var(--gray-500);">Este convite não é válido ou já foi utilizado.</p>
+                <button class="btn-primary btn-full" onclick="window.location.href='home.html'" style="margin-top: 16px;">
+                    <i class="fas fa-home"></i> Voltar para o início
+                </button>
+            </div>
+
+            <!-- Estado: Já Membro -->
+            <div id="alreadyMemberState" class="card" style="display: none; text-align: center; padding: 40px;">
+                <i class="fas fa-user-check" style="font-size: 48px; color: var(--warning);"></i>
+                <h3 style="margin: 16px 0 8px;">Você já é membro!</h3>
+                <p style="color: var(--gray-500);">Você já faz parte desta viagem.</p>
+                <button class="btn-primary btn-full" onclick="window.location.href='home.html'" style="margin-top: 16px;">
+                    <i class="fas fa-plane"></i> Ir para o app
+                </button>
+            </div>
+
+            <!-- Estado: Solicitação Enviada -->
+            <div id="requestSentState" class="card" style="display: none; text-align: center; padding: 40px;">
+                <i class="fas fa-clock" style="font-size: 48px; color: var(--warning);"></i>
+                <h3 style="margin: 16px 0 8px;">Solicitação Enviada!</h3>
+                <p style="color: var(--gray-500);">Sua solicitação foi enviada para o administrador da viagem.</p>
+                <p style="color: var(--gray-500); font-size: 14px;">Aguarde a aprovação para começar a participar.</p>
+                <button class="btn-primary btn-full" onclick="window.location.href='home.html'" style="margin-top: 16px;">
+                    <i class="fas fa-home"></i> Voltar para o início
+                </button>
+            </div>
+        </main>
+
+        <!-- Bottom Navigation -->
+        <nav class="bottom-nav">
+            <button class="nav-item" onclick="window.location.href='home.html'">
+                <i class="fas fa-home"></i>
+                <span>Timeline</span>
+            </button>
+            <button class="nav-item" onclick="window.location.href='home.html'">
+                <i class="fas fa-clipboard-list"></i>
+                <span>Detalhes</span>
+            </button>
+            <button class="nav-item nav-item-center" onclick="window.location.href='home.html?action=register'">
+                <i class="fas fa-camera"></i>
+                <span>Registrar</span>
+            </button>
+            <button class="nav-item" onclick="window.location.href='costs.html'">
+                <i class="fas fa-chart-line"></i>
+                <span>Custos</span>
+            </button>
+            <button class="nav-item" onclick="window.location.href='chat.html'">
+                <i class="fas fa-comment-dots"></i>
+                <span>Chat</span>
+            </button>
+        </nav>
+    </div>
+
+    <!-- Loading -->
+    <div id="loading-screen" class="loading-screen" style="display: none;">
+        <div class="loading-content">
+            <i class="fas fa-plane-departure fa-3x loading-icon"></i>
+            <div class="loading-dots"><span></span><span></span><span></span></div>
+            <p>Carregando...</p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+    <script>
+        // ============================================
+        // VARIÁVEIS
+        // ============================================
+        let inviteData = null;
+        let tripData = null;
+        let currentUser = null;
+        let currentProfile = null;
+
+        // ============================================
+        // UTILITÁRIOS
+        // ============================================
+        function showToast(message, type = 'info') {
+            const existing = document.querySelector('.toast');
+            if (existing) existing.remove();
+            
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i><span>${message}</span>`;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.classList.add('show');
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                    setTimeout(() => toast.remove(), 300);
+                }, 3000);
+            }, 10);
+        }
+
+        function showLoading() {
+            document.getElementById('loading-screen').style.display = 'flex';
+        }
+
+        function hideLoading() {
+            document.getElementById('loading-screen').style.display = 'none';
+        }
+
+        function showState(stateId) {
+            const states = ['loadingState', 'validState', 'invalidState', 'alreadyMemberState', 'requestSentState'];
+            states.forEach(id => {
+                document.getElementById(id).style.display = id === stateId ? 'block' : 'none';
+            });
+        }
+
+        // ============================================
+        // VALIDAR CONVITE
+        // ============================================
+        async function validateInvite() {
+            showLoading();
+            
+            // Verificar autenticação
+            const session = await checkAuth();
+            if (!session) {
+                showLoading();
+                // Salvar token para redirecionar após login
+                const params = new URLSearchParams(window.location.search);
+                const token = params.get('token');
+                if (token) {
+                    sessionStorage.setItem('pendingInviteToken', token);
+                }
+                showToast('Faça login para aceitar o convite', 'warning');
+                setTimeout(() => {
+                    window.location.href = `index.html?redirect=join.html&token=${token}`;
+                }, 1500);
+                return;
+            }
+            
+            currentUser = session.user;
+            currentProfile = await getUserProfile(currentUser.id);
+            
+            // Buscar token da URL
+            const params = new URLSearchParams(window.location.search);
+            const token = params.get('token');
+            
+            if (!token) {
+                showState('invalidState');
+                hideLoading();
+                return;
+            }
+            
+            // Buscar convite
+            const { data: invite, error: inviteError } = await db
+                .from('trip_invites')
+                .select('*')
+                .eq('token', token)
+                .single();
+            
+            if (inviteError || !invite) {
+                console.error('Convite não encontrado:', inviteError);
+                showState('invalidState');
+                hideLoading();
+                return;
+            }
+            
+            // Verificar se convite expirou
+            if (new Date(invite.expires_at) < new Date()) {
+                showState('invalidState');
+                document.querySelector('#invalidState p').textContent = 'Este convite expirou. Solicite um novo link ao administrador.';
+                hideLoading();
+                return;
+            }
+            
+            // Verificar se já foi usado
+            if (invite.used) {
+                showState('invalidState');
+                document.querySelector('#invalidState p').textContent = 'Este convite já foi utilizado.';
+                hideLoading();
+                return;
+            }
+            
+            inviteData = invite;
+            
+            // Buscar dados da viagem
+            const { data: trip, error: tripError } = await db
+                .from('trips')
+                .select('*, profiles:user_id (name, avatar_url)')
+                .eq('id', invite.trip_id)
+                .single();
+            
+            if (tripError || !trip) {
+                showState('invalidState');
+                hideLoading();
+                return;
+            }
+            
+            tripData = trip;
+            
+            // Verificar se usuário já é membro
+            const { data: existingMember } = await db
+                .from('trip_members')
+                .select('status')
+                .eq('trip_id', trip.id)
+                .eq('user_id', currentUser.id)
+                .single();
+            
+            if (existingMember) {
+                if (existingMember.status === 'approved') {
+                    showState('alreadyMemberState');
+                    hideLoading();
+                    return;
+                } else if (existingMember.status === 'pending') {
+                    showState('requestSentState');
+                    hideLoading();
+                    return;
+                }
+            }
+            
+            // Mostrar informações do convite
+            document.getElementById('tripTitleDisplay').textContent = trip.title;
+            document.getElementById('tripDestinationDisplay').textContent = trip.destination || 'Destino não definido';
+            document.getElementById('tripDatesDisplay').textContent = `${formatDate(trip.start_date)} - ${formatDate(trip.end_date)}`;
+            document.getElementById('tripCreatorDisplay').textContent = trip.profiles?.name || 'Usuário';
+            
+            // Contar atividades
+            const { count } = await db
+                .from('itinerary_items')
+                .select('*', { count: 'exact', head: true })
+                .eq('trip_id', trip.id);
+            
+            document.getElementById('activityCountDisplay').textContent = `${count || 0} atividades planejadas`;
+            
+            document.getElementById('inviteInfo').textContent = `Você foi convidado para participar da viagem "${trip.title}"!`;
+            
+            showState('validState');
+            hideLoading();
+        }
+
+        // ============================================
+        // ACEITAR CONVITE
+        // ============================================
+        async function acceptInvite() {
+            if (!inviteData || !tripData) {
+                showToast('Erro ao processar convite', 'error');
+                return;
+            }
+            
+            showLoading();
+            
+            // Criar entrada na tabela trip_members
+            const { error } = await db
+                .from('trip_members')
+                .insert({
+                    trip_id: tripData.id,
+                    user_id: currentUser.id,
+                    status: 'pending',
+                    invited_by: inviteData.created_by,
+                    invited_at: new Date()
+                });
+            
+            if (error) {
+                hideLoading();
+                showToast('Erro ao enviar solicitação: ' + error.message, 'error');
+                return;
+            }
+            
+            // Marcar convite como usado
+            await db
+                .from('trip_invites')
+                .update({ used: true })
+                .eq('id', inviteData.id);
+            
+            hideLoading();
+            showState('requestSentState');
+            showToast('Solicitação enviada! Aguarde a aprovação.', 'success');
+        }
+
+        // ============================================
+        // INIT
+        // ============================================
+        validateInvite();
+    </script>
+</body>
+</html>

@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>Detalhes da Viagem - Trip Planner</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -13,72 +14,190 @@
             <button class="menu-btn" onclick="window.location.href='home.html'">
                 <i class="fas fa-arrow-left"></i>
             </button>
-            <h2>Detalhes da Viagem</h2>
-            <div style="width: 40px;"></div>
+            <h2 id="tripTitleHeader">Detalhes da Viagem</h2>
+            <button class="menu-btn" id="inviteBtn" onclick="openInviteModal()" style="display: none;">
+                <i class="fas fa-user-plus"></i>
+            </button>
         </header>
 
         <main class="main-content">
+            <!-- Informações da Viagem -->
             <div id="tripInfo" class="card">
                 <div class="flex justify-between align-center">
-                    <h3 id="tripTitle">Carregando...</h3>
-                    <button class="btn-secondary" onclick="addItineraryItem()">
-                        <i class="fas fa-plus"></i> Adicionar
+                    <div>
+                        <h3 id="tripTitle">Carregando...</h3>
+                        <p id="tripDestination" style="color: var(--gray-500);"></p>
+                        <p id="tripDates" style="color: var(--gray-500); font-size: 14px;"></p>
+                    </div>
+                    <button id="addItemBtn" class="btn-primary" onclick="openAddItemModal()">
+                        <i class="fas fa-plus"></i>
                     </button>
                 </div>
-                <p id="tripDestination" class="text-gray-500"></p>
-                <p id="tripDates" class="text-gray-500"></p>
             </div>
 
-            <h4 style="margin: 16px 0 8px;">📋 Roteiro Planejado</h4>
-            <div id="itineraryContainer">
-                <div class="empty-state">
-                    <i class="fas fa-calendar-alt"></i>
-                    <p>Nenhum item no roteiro</p>
-                    <button class="btn-primary" onclick="addItineraryItem()">Adicionar primeiro item</button>
+            <!-- Tabs -->
+            <div class="tabs" style="display: flex; gap: 4px; margin-bottom: 16px; background: var(--gray-100); border-radius: var(--radius-md); padding: 4px;">
+                <button class="tab-btn active" data-tab="itinerary" onclick="switchTab('itinerary')">📋 Roteiro</button>
+                <button class="tab-btn" data-tab="members" onclick="switchTab('members')">👥 Membros</button>
+                <button class="tab-btn" data-tab="invites" onclick="switchTab('invites')">🔗 Convites</button>
+            </div>
+
+            <!-- Tab: Roteiro -->
+            <div id="tab-itinerary" class="tab-content">
+                <div id="itineraryContainer">
+                    <div class="empty-state">
+                        <i class="fas fa-calendar-alt"></i>
+                        <p>Nenhum item no roteiro</p>
+                        <button class="btn-primary" onclick="openAddItemModal()">Adicionar primeiro item</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab: Membros -->
+            <div id="tab-members" class="tab-content" style="display: none;">
+                <div id="membersContainer">
+                    <div class="empty-state">
+                        <i class="fas fa-users"></i>
+                        <p>Carregando membros...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab: Convites -->
+            <div id="tab-invites" class="tab-content" style="display: none;">
+                <div id="invitesContainer">
+                    <div class="empty-state">
+                        <i class="fas fa-link"></i>
+                        <p>Carregando convites...</p>
+                    </div>
                 </div>
             </div>
         </main>
+
+        <!-- Bottom Navigation -->
+        <nav class="bottom-nav">
+            <button class="nav-item" onclick="window.location.href='home.html'">
+                <i class="fas fa-home"></i>
+                <span>Timeline</span>
+            </button>
+            <button class="nav-item active">
+                <i class="fas fa-clipboard-list"></i>
+                <span>Detalhes</span>
+            </button>
+            <button class="nav-item nav-item-center" onclick="window.location.href='home.html?action=register'">
+                <i class="fas fa-camera"></i>
+                <span>Registrar</span>
+            </button>
+            <button class="nav-item" onclick="window.location.href=`costs.html?id=${currentTripId || ''}`">
+                <i class="fas fa-chart-line"></i>
+                <span>Custos</span>
+            </button>
+            <button class="nav-item" onclick="window.location.href=`chat.html?id=${currentTripId || ''}`">
+                <i class="fas fa-comment-dots"></i>
+                <span>Chat</span>
+            </button>
+        </nav>
     </div>
 
-    <!-- Modal Adicionar Item -->
-    <div id="itemModal" class="modal">
+    <!-- Modal: Convidar -->
+    <div id="inviteModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>Adicionar ao Roteiro</h3>
-                <button class="modal-close" onclick="closeModal('itemModal')">&times;</button>
+                <h3>👥 Convidar para viagem</h3>
+                <button class="modal-close" onclick="closeModal('inviteModal')">&times;</button>
             </div>
             <div class="modal-body">
-                <div class="input-group">
-                    <i class="fas fa-calendar-day"></i>
-                    <input type="number" id="itemDay" placeholder="Dia (1, 2, 3...)" min="1">
-                </div>
-                <div class="flex gap-1">
-                    <div class="input-group">
-                        <i class="fas fa-clock"></i>
-                        <input type="time" id="itemStartTime">
+                <div style="margin-bottom: 16px;">
+                    <label style="font-weight: 600; display: block; margin-bottom: 8px;">Link de convite:</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="inviteLinkInput" readonly style="flex: 1; padding: 10px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); font-size: 12px;">
+                        <button class="btn-primary" onclick="copyInviteLink()">
+                            <i class="fas fa-copy"></i>
+                        </button>
                     </div>
-                    <div class="input-group">
-                        <i class="fas fa-clock"></i>
-                        <input type="time" id="itemEndTime">
+                    <button class="btn-secondary" onclick="generateNewInvite()" style="margin-top: 8px;">
+                        <i class="fas fa-sync"></i> Gerar novo link
+                    </button>
+                </div>
+
+                <div style="border-top: 1px solid var(--gray-200); padding-top: 16px;">
+                    <h4 style="margin-bottom: 12px;">📋 Solicitações pendentes</h4>
+                    <div id="pendingRequests">
+                        <p style="color: var(--gray-500);">Nenhuma solicitação pendente</p>
                     </div>
                 </div>
-                <div class="input-group">
-                    <i class="fas fa-tag"></i>
-                    <input type="text" id="itemTitle" placeholder="Título (ex: Bondinho)">
-                </div>
-                <div class="input-group">
-                    <i class="fas fa-map-marker-alt"></i>
-                    <input type="text" id="itemAddress" placeholder="Endereço">
-                </div>
-                <div class="input-group">
-                    <i class="fas fa-dollar-sign"></i>
-                    <input type="number" id="itemCost" placeholder="Custo planejado" step="0.01">
-                </div>
-                <button class="btn-primary btn-full" onclick="saveItineraryItem()">Salvar</button>
             </div>
         </div>
     </div>
 
+    <!-- Modal: Adicionar/Editar Item -->
+    <div id="itemModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="itemModalTitle">Adicionar ao Roteiro</h3>
+                <button class="modal-close" onclick="closeItemModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editingItemId">
+                
+                <div class="input-group">
+                    <i class="fas fa-tag"></i>
+                    <input type="text" id="itemTitle" placeholder="Título (ex: Bondinho)" required>
+                </div>
+                
+                <div class="input-group">
+                    <i class="fas fa-calendar-day"></i>
+                    <input type="number" id="itemDay" placeholder="Dia (1, 2, 3...)" min="1" required>
+                </div>
+                
+                <div class="flex gap-1">
+                    <div class="input-group" style="flex: 1;">
+                        <i class="fas fa-clock"></i>
+                        <input type="time" id="itemStartTime">
+                    </div>
+                    <div class="input-group" style="flex: 1;">
+                        <i class="fas fa-clock"></i>
+                        <input type="time" id="itemEndTime">
+                    </div>
+                </div>
+                
+                <div class="input-group">
+                    <i class="fas fa-map-marker-alt"></i>
+                    <input type="text" id="itemAddress" placeholder="Endereço">
+                </div>
+                
+                <div class="input-group">
+                    <i class="fas fa-dollar-sign"></i>
+                    <input type="number" id="itemCost" placeholder="Custo planejado" step="0.01">
+                </div>
+
+                <div style="margin: 16px 0;">
+                    <label style="font-weight: 600; display: block; margin-bottom: 8px;">📸 Foto planejada:</label>
+                    <div id="plannedPhotoPreview" style="display: none; margin-bottom: 8px;">
+                        <img id="plannedPhotoImg" style="width: 100%; max-height: 200px; object-fit: cover; border-radius: var(--radius-sm);">
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="file" id="plannedPhotoInput" accept="image/*" style="display: none;">
+                        <button class="btn-secondary" onclick="document.getElementById('plannedPhotoInput').click()">
+                            <i class="fas fa-image"></i> Escolher foto
+                        </button>
+                        <button class="btn-secondary" id="removePhotoBtn" onclick="removePlannedPhoto()" style="display: none; color: var(--danger);">
+                            <i class="fas fa-trash"></i> Remover
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="flex gap-1">
+                    <button class="btn-secondary" onclick="closeItemModal()">Cancelar</button>
+                    <button class="btn-primary" style="flex: 1;" onclick="saveItineraryItem()">
+                        <i class="fas fa-save"></i> Salvar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading -->
     <div id="loading-screen" class="loading-screen" style="display: none;">
         <div class="loading-content">
             <i class="fas fa-plane-departure fa-3x loading-icon"></i>
@@ -90,17 +209,35 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
     <script>
+        // ============================================
+        // VARIÁVEIS GLOBAIS
+        // ============================================
         let currentTrip = null;
+        let currentUser = null;
+        let currentProfile = null;
         let itineraryItems = [];
+        let editingItemId = null;
+        let selectedPlannedPhoto = null;
+        let currentTripId = null;
 
-        function showToast(message, type) {
+        // ============================================
+        // UTILITÁRIOS
+        // ============================================
+        function showToast(message, type = 'info') {
+            const existing = document.querySelector('.toast');
+            if (existing) existing.remove();
+            
             const toast = document.createElement('div');
             toast.className = `toast toast-${type}`;
-            toast.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i><span>${message}</span>`;
+            toast.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i><span>${message}</span>`;
             document.body.appendChild(toast);
+            
             setTimeout(() => {
                 toast.classList.add('show');
-                setTimeout(() => toast.remove(), 3000);
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                    setTimeout(() => toast.remove(), 300);
+                }, 3000);
             }, 10);
         }
 
@@ -116,35 +253,123 @@
             document.getElementById(modalId).classList.remove('open');
         }
 
+        function openModal(modalId) {
+            document.getElementById(modalId).classList.add('open');
+        }
+
+        function closeItemModal() {
+            closeModal('itemModal');
+            editingItemId = null;
+            selectedPlannedPhoto = null;
+            document.getElementById('editingItemId').value = '';
+            document.getElementById('itemTitle').value = '';
+            document.getElementById('itemDay').value = '';
+            document.getElementById('itemStartTime').value = '';
+            document.getElementById('itemEndTime').value = '';
+            document.getElementById('itemAddress').value = '';
+            document.getElementById('itemCost').value = '';
+            document.getElementById('plannedPhotoInput').value = '';
+            document.getElementById('plannedPhotoPreview').style.display = 'none';
+            document.getElementById('removePhotoBtn').style.display = 'none';
+        }
+
+        // ============================================
+        // CARREGAR DADOS DA VIAGEM
+        // ============================================
         async function loadTripDetails() {
             showLoading();
-            const params = new URLSearchParams(window.location.search);
-            const tripId = params.get('id');
             
-            if (!tripId) {
+            const session = await checkAuth();
+            if (!session) return;
+            currentUser = session.user;
+            currentProfile = await getUserProfile(currentUser.id);
+            
+            const params = new URLSearchParams(window.location.search);
+            currentTripId = params.get('id');
+            
+            if (!currentTripId) {
                 showToast('Viagem não encontrada', 'error');
                 setTimeout(() => window.location.href = 'home.html', 1500);
                 return;
             }
             
-            const { data: trip } = await db.from('trips').select('*').eq('id', tripId).single();
+            // Buscar dados da viagem
+            const { data: trip, error: tripError } = await db
+                .from('trips')
+                .select('*')
+                .eq('id', currentTripId)
+                .single();
+            
+            if (tripError || !trip) {
+                showToast('Erro ao carregar viagem', 'error');
+                hideLoading();
+                return;
+            }
+            
             currentTrip = trip;
             
+            // Verificar se usuário é admin
+            const isAdmin = trip.user_id === currentUser.id;
+            
             document.getElementById('tripTitle').textContent = trip.title;
+            document.getElementById('tripTitleHeader').textContent = trip.title;
             document.getElementById('tripDestination').textContent = trip.destination || 'Destino não definido';
             document.getElementById('tripDates').textContent = `${formatDate(trip.start_date)} - ${formatDate(trip.end_date)}`;
             
-            await loadItinerary(tripId);
+            // Mostrar botão de convite apenas para admin
+            const inviteBtn = document.getElementById('inviteBtn');
+            if (isAdmin) {
+                inviteBtn.style.display = 'block';
+            }
+            
+            await loadItinerary();
+            await loadMembers();
+            await loadInvites();
+            
             hideLoading();
         }
 
-        async function loadItinerary(tripId) {
-            const { data } = await db.from('itinerary_items').select('*').eq('trip_id', tripId).order('day_number', { ascending: true });
-            itineraryItems = data || [];
+        // ============================================
+        // TABS
+        // ============================================
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.style.display = 'none');
             
+            document.querySelector(`.tab-btn[data-tab="${tab}"]`).classList.add('active');
+            document.getElementById(`tab-${tab}`).style.display = 'block';
+        }
+
+        // ============================================
+        // ITINERARY (Roteiro)
+        // ============================================
+        async function loadItinerary() {
+            const { data, error } = await db
+                .from('itinerary_items')
+                .select('*')
+                .eq('trip_id', currentTripId)
+                .order('day_number', { ascending: true });
+            
+            if (error) {
+                console.error('Erro ao carregar roteiro:', error);
+                return;
+            }
+            
+            itineraryItems = data || [];
+            renderItinerary();
+        }
+
+        function renderItinerary() {
             const container = document.getElementById('itineraryContainer');
+            
             if (itineraryItems.length === 0) {
-                container.innerHTML = `<div class="empty-state"><i class="fas fa-calendar-alt"></i><p>Nenhum item no roteiro</p><button class="btn-primary" onclick="addItineraryItem()">Adicionar primeiro item</button></div>`;
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-calendar-alt"></i>
+                        <p>Nenhum item no roteiro</p>
+                        <button class="btn-primary" onclick="openAddItemModal()">Adicionar primeiro item</button>
+                    </div>
+                `;
                 return;
             }
             
@@ -155,14 +380,43 @@
                 const dayItems = itineraryItems.filter(i => i.day_number === day);
                 html += `<div class="card"><h4>📅 Dia ${day}</h4>`;
                 dayItems.forEach(item => {
+                    const hasPlannedPhoto = item.planned_photo_url && item.planned_photo_url !== '';
+                    const hasActualPhoto = item.actual_photo_url && item.actual_photo_url !== '';
+                    
                     html += `
-                        <div style="border-left: 3px solid var(--primary); padding-left: 12px; margin: 12px 0;">
-                            <strong>${escapeHtml(item.title)}</strong>
+                        <div class="itinerary-item" style="border-left: 3px solid var(--primary); padding-left: 12px; margin: 12px 0; background: var(--gray-50); border-radius: var(--radius-sm); padding: 12px;">
+                            <div class="flex justify-between align-center">
+                                <strong>${escapeHtml(item.title)}</strong>
+                                <div>
+                                    <button class="btn-icon" onclick="editItem('${item.id}')" title="Editar">
+                                        <i class="fas fa-edit" style="color: var(--primary);"></i>
+                                    </button>
+                                    <button class="btn-icon" onclick="deleteItem('${item.id}')" title="Excluir">
+                                        <i class="fas fa-trash" style="color: var(--danger);"></i>
+                                    </button>
+                                </div>
+                            </div>
                             <div style="font-size: 12px; color: var(--gray-500);">
                                 ${item.start_time ? item.start_time.substring(0,5) : '--:--'} - ${item.end_time ? item.end_time.substring(0,5) : '--:--'}
                             </div>
                             ${item.address ? `<div style="font-size: 12px;"><i class="fas fa-map-marker-alt"></i> ${escapeHtml(item.address)}</div>` : ''}
                             <div style="font-size: 13px; color: var(--success);">💰 ${formatCurrency(item.planned_cost)}</div>
+                            
+                            <!-- Fotos -->
+                            <div style="display: flex; gap: 8px; margin-top: 8px;">
+                                ${hasPlannedPhoto ? `
+                                    <div style="position: relative;">
+                                        <img src="${item.planned_photo_url}" style="width: 60px; height: 60px; object-fit: cover; border-radius: var(--radius-sm); border: 2px solid var(--primary);">
+                                        <div style="position: absolute; top: -4px; left: -4px; background: var(--primary); color: white; font-size: 8px; padding: 1px 4px; border-radius: 4px;">PLANEJADO</div>
+                                    </div>
+                                ` : ''}
+                                ${hasActualPhoto ? `
+                                    <div style="position: relative;">
+                                        <img src="${item.actual_photo_url}" style="width: 60px; height: 60px; object-fit: cover; border-radius: var(--radius-sm); border: 2px solid var(--success);">
+                                        <div style="position: absolute; top: -4px; left: -4px; background: var(--success); color: white; font-size: 8px; padding: 1px 4px; border-radius: 4px;">REALIZADO</div>
+                                    </div>
+                                ` : ''}
+                            </div>
                         </div>
                     `;
                 });
@@ -172,54 +426,502 @@
             container.innerHTML = html;
         }
 
-        function addItineraryItem() {
-            document.getElementById('itemModal').classList.add('open');
+        // ============================================
+        // ADICIONAR/EDITAR ITEM
+        // ============================================
+        function openAddItemModal() {
+            editingItemId = null;
+            document.getElementById('itemModalTitle').textContent = 'Adicionar ao Roteiro';
+            document.getElementById('editingItemId').value = '';
+            document.getElementById('itemTitle').value = '';
+            document.getElementById('itemDay').value = '';
+            document.getElementById('itemStartTime').value = '';
+            document.getElementById('itemEndTime').value = '';
+            document.getElementById('itemAddress').value = '';
+            document.getElementById('itemCost').value = '';
+            document.getElementById('plannedPhotoInput').value = '';
+            document.getElementById('plannedPhotoPreview').style.display = 'none';
+            document.getElementById('removePhotoBtn').style.display = 'none';
+            openModal('itemModal');
+        }
+
+        async function editItem(itemId) {
+            const item = itineraryItems.find(i => i.id === itemId);
+            if (!item) return;
+            
+            editingItemId = itemId;
+            document.getElementById('itemModalTitle').textContent = '✏️ Editar Atividade';
+            document.getElementById('editingItemId').value = itemId;
+            document.getElementById('itemTitle').value = item.title || '';
+            document.getElementById('itemDay').value = item.day_number || '';
+            document.getElementById('itemStartTime').value = item.start_time || '';
+            document.getElementById('itemEndTime').value = item.end_time || '';
+            document.getElementById('itemAddress').value = item.address || '';
+            document.getElementById('itemCost').value = item.planned_cost || '';
+            
+            if (item.planned_photo_url) {
+                document.getElementById('plannedPhotoImg').src = item.planned_photo_url;
+                document.getElementById('plannedPhotoPreview').style.display = 'block';
+                document.getElementById('removePhotoBtn').style.display = 'inline-block';
+            }
+            
+            openModal('itemModal');
+        }
+
+        async function deleteItem(itemId) {
+            if (!confirm('Tem certeza que deseja excluir esta atividade?')) return;
+            
+            showLoading();
+            
+            const { error } = await db
+                .from('itinerary_items')
+                .delete()
+                .eq('id', itemId);
+            
+            hideLoading();
+            
+            if (error) {
+                showToast('Erro ao excluir atividade', 'error');
+                return;
+            }
+            
+            showToast('Atividade excluída!', 'success');
+            await loadItinerary();
         }
 
         async function saveItineraryItem() {
+            const title = document.getElementById('itemTitle').value.trim();
             const day = parseInt(document.getElementById('itemDay').value);
             const startTime = document.getElementById('itemStartTime').value;
             const endTime = document.getElementById('itemEndTime').value;
-            const title = document.getElementById('itemTitle').value;
-            const address = document.getElementById('itemAddress').value;
-            const cost = parseFloat(document.getElementById('itemCost').value);
+            const address = document.getElementById('itemAddress').value.trim();
+            const cost = parseFloat(document.getElementById('itemCost').value) || 0;
+            const editingId = document.getElementById('editingItemId').value;
             
-            if (!day || !title) {
-                showToast('Preencha o dia e o título', 'error');
+            if (!title || !day) {
+                showToast('Preencha o título e o dia', 'error');
                 return;
             }
             
             showLoading();
-            const { error } = await db.from('itinerary_items').insert({
-                trip_id: currentTrip.id,
+            
+            let plannedPhotoUrl = null;
+            if (selectedPlannedPhoto) {
+                try {
+                    plannedPhotoUrl = await uploadImage(selectedPlannedPhoto, 'itinerary-photos', currentTripId);
+                } catch (error) {
+                    hideLoading();
+                    showToast('Erro ao fazer upload da foto', 'error');
+                    return;
+                }
+            }
+            
+            const itemData = {
+                trip_id: currentTripId,
                 day_number: day,
                 start_time: startTime || null,
                 end_time: endTime || null,
                 title: title,
                 address: address || null,
-                planned_cost: cost || 0
-            });
+                planned_cost: cost,
+                updated_by: currentUser.id
+            };
+            
+            if (editingId) {
+                // UPDATE
+                if (plannedPhotoUrl) {
+                    itemData.planned_photo_url = plannedPhotoUrl;
+                }
+                
+                const { error } = await db
+                    .from('itinerary_items')
+                    .update(itemData)
+                    .eq('id', editingId);
+                
+                hideLoading();
+                
+                if (error) {
+                    showToast('Erro ao atualizar', 'error');
+                    return;
+                }
+                
+                showToast('Atividade atualizada!', 'success');
+            } else {
+                // INSERT
+                itemData.created_by = currentUser.id;
+                if (plannedPhotoUrl) {
+                    itemData.planned_photo_url = plannedPhotoUrl;
+                }
+                
+                const { error } = await db
+                    .from('itinerary_items')
+                    .insert(itemData);
+                
+                hideLoading();
+                
+                if (error) {
+                    showToast('Erro ao salvar', 'error');
+                    return;
+                }
+                
+                showToast('Atividade adicionada!', 'success');
+            }
+            
+            closeItemModal();
+            await loadItinerary();
+        }
+
+        // ============================================
+        // FOTO PLANEJADA
+        // ============================================
+        document.getElementById('plannedPhotoInput').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                selectedPlannedPhoto = file;
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    document.getElementById('plannedPhotoImg').src = event.target.result;
+                    document.getElementById('plannedPhotoPreview').style.display = 'block';
+                    document.getElementById('removePhotoBtn').style.display = 'inline-block';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        function removePlannedPhoto() {
+            selectedPlannedPhoto = null;
+            document.getElementById('plannedPhotoInput').value = '';
+            document.getElementById('plannedPhotoPreview').style.display = 'none';
+            document.getElementById('removePhotoBtn').style.display = 'none';
+        }
+
+        // ============================================
+        // MEMBROS
+        // ============================================
+        async function loadMembers() {
+            const { data, error } = await db
+                .from('trip_members')
+                .select(`
+                    *,
+                    profiles:user_id (id, name, avatar_url)
+                `)
+                .eq('trip_id', currentTripId);
+            
+            const container = document.getElementById('membersContainer');
+            
+            if (error || !data || data.length === 0) {
+                container.innerHTML = `
+                    <div class="card">
+                        <p style="text-align: center; color: var(--gray-500);">Nenhum membro ainda</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Separar aprovados e pendentes
+            const approved = data.filter(m => m.status === 'approved');
+            const pending = data.filter(m => m.status === 'pending');
+            
+            let html = '';
+            
+            if (approved.length > 0) {
+                html += `<div class="card"><h4>✅ Membros Aprovados</h4>`;
+                approved.forEach(m => {
+                    const isAdmin = currentTrip?.user_id === m.user_id;
+                    html += `
+                        <div class="flex justify-between align-center" style="margin: 8px 0; padding: 8px; background: var(--gray-50); border-radius: var(--radius-sm);">
+                            <div class="flex align-center" style="gap: 8px;">
+                                <img src="${m.profiles?.avatar_url || 'https://via.placeholder.com/32'}" style="width: 32px; height: 32px; border-radius: 50%;">
+                                <span><strong>${escapeHtml(m.profiles?.name || 'Usuário')}</strong> ${isAdmin ? '👑' : ''}</span>
+                            </div>
+                            <span style="font-size: 12px; color: var(--gray-500);">${isAdmin ? 'Admin' : 'Membro'}</span>
+                        </div>
+                    `;
+                });
+                html += `</div>`;
+            }
+            
+            if (pending.length > 0 && currentTrip?.user_id === currentUser.id) {
+                html += `<div class="card"><h4>⏳ Solicitações Pendentes</h4>`;
+                pending.forEach(m => {
+                    html += `
+                        <div class="flex justify-between align-center" style="margin: 8px 0; padding: 8px; background: var(--gray-50); border-radius: var(--radius-sm);">
+                            <div class="flex align-center" style="gap: 8px;">
+                                <img src="${m.profiles?.avatar_url || 'https://via.placeholder.com/32'}" style="width: 32px; height: 32px; border-radius: 50%;">
+                                <span>${escapeHtml(m.profiles?.name || 'Usuário')}</span>
+                            </div>
+                            <div style="display: flex; gap: 8px;">
+                                <button class="btn-primary" onclick="approveMember('${m.id}')" style="padding: 4px 12px; font-size: 12px;">
+                                    ✅ Aprovar
+                                </button>
+                                <button class="btn-danger" onclick="rejectMember('${m.id}')" style="padding: 4px 12px; font-size: 12px;">
+                                    ❌ Recusar
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += `</div>`;
+            }
+            
+            container.innerHTML = html;
+        }
+
+        async function approveMember(memberId) {
+            showLoading();
+            const { error } = await db
+                .from('trip_members')
+                .update({ status: 'approved' })
+                .eq('id', memberId);
             
             hideLoading();
             
             if (error) {
-                showToast('Erro ao salvar', 'error');
+                showToast('Erro ao aprovar', 'error');
                 return;
             }
             
-            showToast('Item adicionado!', 'success');
-            closeModal('itemModal');
-            document.getElementById('itemDay').value = '';
-            document.getElementById('itemStartTime').value = '';
-            document.getElementById('itemEndTime').value = '';
-            document.getElementById('itemTitle').value = '';
-            document.getElementById('itemAddress').value = '';
-            document.getElementById('itemCost').value = '';
-            
-            await loadItinerary(currentTrip.id);
+            showToast('Membro aprovado!', 'success');
+            await loadMembers();
+            await loadInvites();
         }
 
+        async function rejectMember(memberId) {
+            showLoading();
+            const { error } = await db
+                .from('trip_members')
+                .delete()
+                .eq('id', memberId);
+            
+            hideLoading();
+            
+            if (error) {
+                showToast('Erro ao recusar', 'error');
+                return;
+            }
+            
+            showToast('Solicitação recusada', 'success');
+            await loadMembers();
+            await loadInvites();
+        }
+
+        // ============================================
+        // CONVITES
+        // ============================================
+        async function loadInvites() {
+            const container = document.getElementById('invitesContainer');
+            
+            const { data, error } = await db
+                .from('trip_invites')
+                .select('*')
+                .eq('trip_id', currentTripId)
+                .order('created_at', { ascending: false });
+            
+            if (error || !data || data.length === 0) {
+                container.innerHTML = `
+                    <div class="card">
+                        <p style="text-align: center; color: var(--gray-500);">Nenhum convite gerado ainda</p>
+                        <button class="btn-primary btn-full" onclick="generateNewInvite()">
+                            <i class="fas fa-link"></i> Gerar link de convite
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+            
+            const activeInvites = data.filter(i => !i.used);
+            const usedInvites = data.filter(i => i.used);
+            
+            let html = '';
+            
+            if (activeInvites.length > 0) {
+                html += `<div class="card"><h4>🔗 Links Ativos</h4>`;
+                activeInvites.forEach(invite => {
+                    html += `
+                        <div style="margin: 8px 0; padding: 8px; background: var(--gray-50); border-radius: var(--radius-sm);">
+                            <div style="font-size: 12px; color: var(--gray-500);">
+                                Criado em: ${formatDate(invite.created_at)}
+                            </div>
+                            <div style="display: flex; gap: 8px; margin-top: 4px;">
+                                <input type="text" value="${window.location.origin}/join.html?token=${invite.token}" readonly style="flex: 1; padding: 6px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); font-size: 12px;">
+                                <button class="btn-primary" onclick="copyText('${window.location.origin}/join.html?token=${invite.token}')" style="padding: 4px 12px; font-size: 12px;">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                                <button class="btn-danger" onclick="deleteInvite('${invite.id}')" style="padding: 4px 12px; font-size: 12px;">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                            <div style="font-size: 11px; color: var(--gray-400); margin-top: 4px;">
+                                Expira em: ${formatDate(invite.expires_at)}
+                            </div>
+                        </div>
+                    `;
+                });
+                html += `</div>`;
+            }
+            
+            if (usedInvites.length > 0) {
+                html += `<div class="card"><h4>✅ Links Utilizados</h4>`;
+                usedInvites.forEach(invite => {
+                    html += `
+                        <div style="margin: 8px 0; padding: 8px; background: var(--gray-50); border-radius: var(--radius-sm); opacity: 0.6;">
+                            <div style="font-size: 12px; color: var(--gray-500);">
+                                Criado em: ${formatDate(invite.created_at)} (utilizado)
+                            </div>
+                        </div>
+                    `;
+                });
+                html += `</div>`;
+            }
+            
+            html += `
+                <button class="btn-primary btn-full" onclick="generateNewInvite()">
+                    <i class="fas fa-plus"></i> Gerar novo link
+                </button>
+            `;
+            
+            container.innerHTML = html;
+        }
+
+        async function generateNewInvite() {
+            showLoading();
+            
+            const token = generateToken();
+            
+            const { data, error } = await db
+                .from('trip_invites')
+                .insert({
+                    trip_id: currentTripId,
+                    token: token,
+                    created_by: currentUser.id,
+                    created_at: new Date(),
+                    expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+                })
+                .select();
+            
+            hideLoading();
+            
+            if (error) {
+                showToast('Erro ao gerar convite', 'error');
+                return;
+            }
+            
+            showToast('Link gerado com sucesso!', 'success');
+            await loadInvites();
+            
+            // Copiar link automaticamente
+            if (data && data[0]) {
+                const link = `${window.location.origin}/join.html?token=${data[0].token}`;
+                await copyText(link);
+                showToast('Link copiado para a área de transferência!', 'success');
+            }
+        }
+
+        async function deleteInvite(inviteId) {
+            if (!confirm('Tem certeza que deseja excluir este convite?')) return;
+            
+            showLoading();
+            const { error } = await db
+                .from('trip_invites')
+                .delete()
+                .eq('id', inviteId);
+            
+            hideLoading();
+            
+            if (error) {
+                showToast('Erro ao excluir convite', 'error');
+                return;
+            }
+            
+            showToast('Convite excluído!', 'success');
+            await loadInvites();
+        }
+
+        function openInviteModal() {
+            openModal('inviteModal');
+            loadInvites();
+        }
+
+        // ============================================
+        // UTILITÁRIOS DE TEXTO
+        // ============================================
+        function generateToken() {
+            return Array.from(crypto.getRandomValues(new Uint8Array(16)))
+                .map(b => b.toString(16).padStart(2, '0'))
+                .join('');
+        }
+
+        async function copyText(text) {
+            try {
+                await navigator.clipboard.writeText(text);
+                showToast('Copiado!', 'success');
+            } catch (err) {
+                // Fallback
+                const input = document.createElement('input');
+                input.value = text;
+                document.body.appendChild(input);
+                input.select();
+                document.execCommand('copy');
+                document.body.removeChild(input);
+                showToast('Copiado!', 'success');
+            }
+        }
+
+        // ============================================
+        // INIT
+        // ============================================
         loadTripDetails();
     </script>
+
+    <!-- Estilos adicionais -->
+    <style>
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 16px;
+            background: var(--gray-100);
+            border-radius: var(--radius-md);
+            padding: 4px;
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: var(--radius-sm);
+            background: transparent;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            color: var(--gray-500);
+        }
+        .tab-btn.active {
+            background: white;
+            color: var(--primary);
+            box-shadow: var(--shadow-sm);
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .itinerary-item {
+            transition: all var(--transition-fast);
+        }
+        .itinerary-item:hover {
+            background: var(--gray-100) !important;
+        }
+        .btn-icon {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: var(--radius-sm);
+            transition: background var(--transition-fast);
+        }
+        .btn-icon:hover {
+            background: var(--gray-200);
+        }
+    </style>
 </body>
 </html>
