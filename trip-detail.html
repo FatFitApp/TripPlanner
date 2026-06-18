@@ -783,40 +783,51 @@
             container.innerHTML = html;
         }
 
-        async function generateNewInvite() {
-            showLoading();
-            
-            const token = generateToken();
-            
-            const { data, error } = await db
-                .from('trip_invites')
-                .insert({
-                    trip_id: currentTripId,
-                    token: token,
-                    created_by: currentUser.id,
-                    created_at: new Date(),
-                    expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-                })
-                .select();
-            
-            hideLoading();
-            
-            if (error) {
-                showToast('Erro ao gerar convite', 'error');
-                return;
-            }
-            
-            showToast('Link gerado com sucesso!', 'success');
-            await loadInvites();
-            
-            // Copiar link automaticamente
-            if (data && data[0]) {
-                const link = `${window.location.origin}/join.html?token=${data[0].token}`;
-                await copyText(link);
-                showToast('Link copiado para a área de transferência!', 'success');
-            }
+async function generateNewInvite() {
+    showLoading();
+    
+    const token = generateToken();
+    
+    const { data, error } = await db
+        .from('trip_invites')
+        .insert({
+            trip_id: currentTripId,
+            token: token,
+            created_by: currentUser.id,
+            created_at: new Date(),
+            expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+        })
+        .select();
+    
+    hideLoading();
+    
+    if (error) {
+        showToast('Erro ao gerar convite', 'error');
+        return;
+    }
+    
+    showToast('Link gerado com sucesso!', 'success');
+    await loadInvites();
+    
+    if (data && data[0]) {
+        // Usar a função buildUrl para criar o link correto
+        const link = buildUrl(`join.html?token=${data[0].token}`);
+        
+        try {
+            await navigator.clipboard.writeText(link);
+            showToast('Link copiado para a área de transferência!', 'success');
+        } catch (err) {
+            // Fallback para navegadores sem suporte a clipboard
+            const input = document.createElement('input');
+            input.value = link;
+            document.body.appendChild(input);
+            input.select();
+            document.execCommand('copy');
+            document.body.removeChild(input);
+            showToast('Link copiado!', 'success');
         }
-
+    }
+}
         async function deleteInvite(inviteId) {
             if (!confirm('Tem certeza que deseja excluir este convite?')) return;
             

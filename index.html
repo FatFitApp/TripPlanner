@@ -266,27 +266,53 @@
         // ============================================
         checkAuthAndRedirect();
     </script>
-        <script>
-        // ============================================
-        // REDIRECIONAR APÓS LOGIN
-        // ============================================
-        async function checkRedirect() {
-            const params = new URLSearchParams(window.location.search);
-            const redirect = params.get('redirect');
-            const token = params.get('token');
-            
-            if (redirect && token) {
-                // Verificar se já está logado
-                const session = await db.auth.getSession();
-                if (session.data.session) {
-                    window.location.href = `${redirect}?token=${token}`;
-                } else {
-                    // Salvar para depois do login
-                    sessionStorage.setItem('pendingInviteToken', token);
-                    sessionStorage.setItem('pendingInviteRedirect', redirect);
-                }
+
+<script>
+    // ============================================
+    // REDIRECIONAMENTO DINÂMICO
+    // ============================================
+    async function checkRedirect() {
+        const params = new URLSearchParams(window.location.search);
+        const redirect = params.get('redirect');
+        const token = params.get('token');
+        
+        if (redirect && token) {
+            const session = await db.auth.getSession();
+            if (session.data.session) {
+                // Usar buildUrl para redirecionar
+                const redirectUrl = buildUrl(`${redirect}?token=${token}`);
+                window.location.href = redirectUrl;
+            } else {
+                sessionStorage.setItem('pendingInviteToken', token);
+                sessionStorage.setItem('pendingInviteRedirect', redirect);
             }
         }
+    }
+    
+    // Verificar se há convite pendente após login
+    const originalLoginSubmit = document.getElementById('login-form')?.onsubmit;
+    if (document.getElementById('login-form')) {
+        document.getElementById('login-form').onsubmit = async (e) => {
+            e.preventDefault();
+            
+            // Executar login original
+            if (originalLoginSubmit) {
+                await originalLoginSubmit(e);
+            }
+            
+            // Verificar redirecionamento pendente
+            const token = sessionStorage.getItem('pendingInviteToken');
+            const redirect = sessionStorage.getItem('pendingInviteRedirect');
+            if (token && redirect) {
+                sessionStorage.removeItem('pendingInviteToken');
+                sessionStorage.removeItem('pendingInviteRedirect');
+                const redirectUrl = buildUrl(`${redirect}?token=${token}`);
+                window.location.href = redirectUrl;
+            }
+        };
+    }
+    
+    checkRedirect();
         
         // Adicionar no final do login
         const originalLogin = document.getElementById('login-form')?.addEventListener;
@@ -310,5 +336,6 @@
         
         checkRedirect();
     </script>
+    
 </body>
 </html>

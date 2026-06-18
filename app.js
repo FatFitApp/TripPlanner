@@ -120,6 +120,9 @@ if (imageInput) {
 // ============================================
 // AUTH CHECK
 // ============================================
+// ============================================
+// AUTH CHECK (COM REDIRECIONAMENTO DE CONVITE)
+// ============================================
 async function checkAuthAndLoad() {
     console.log('🔐 Verificando autenticação...');
     
@@ -133,8 +136,8 @@ async function checkAuthAndLoad() {
     const pendingToken = sessionStorage.getItem('pendingInviteToken');
     if (pendingToken) {
         sessionStorage.removeItem('pendingInviteToken');
-        // Redirecionar para join.html com o token
-        window.location.href = `join.html?token=${pendingToken}`;
+        // USANDO buildUrl para redirecionar para join.html
+        window.location.href = buildUrl(`join.html?token=${pendingToken}`);
         return;
     }
     
@@ -460,6 +463,9 @@ async function submitPost() {
 // ============================================
 // CREATE TRIP
 // ============================================
+// ============================================
+// CREATE TRIP (COM buildUrl)
+// ============================================
 async function createTrip() {
     const title = prompt('Título da viagem:');
     if (!title) return;
@@ -508,7 +514,6 @@ async function createTrip() {
     
     showToast('Viagem criada com sucesso!', 'success');
     
-    // Adicionar o criador como membro aprovado automaticamente
     if (data && data[0]) {
         await db.from('trip_members').insert({
             trip_id: data[0].id,
@@ -520,8 +525,16 @@ async function createTrip() {
     }
     
     await loadTripsForSidebar();
+    
+    // Redirecionar para detalhes da viagem usando buildUrl
+    if (currentTripId) {
+        window.location.href = buildUrl(`trip-detail.html?id=${currentTripId}`);
+    }
 }
 
+// ============================================
+// ADD COMMENT
+// ============================================
 // ============================================
 // ADD COMMENT
 // ============================================
@@ -598,6 +611,9 @@ async function likePost(postId) {
 // ============================================
 // EVENT LISTENERS
 // ============================================
+// ============================================
+// EVENT LISTENERS (COM buildUrl)
+// ============================================
 function setupEventListeners() {
     console.log('🎯 Configurando event listeners...');
     
@@ -617,7 +633,7 @@ function setupEventListeners() {
         overlay.addEventListener('click', closeSidebar);
     }
     
-    // Bottom navigation
+    // Bottom navigation - COM buildUrl
     document.querySelectorAll('.nav-item').forEach(item => {
         item.addEventListener('click', async () => {
             const nav = item.dataset.nav;
@@ -632,7 +648,7 @@ function setupEventListeners() {
                 await loadTimeline();
             } 
             else if (nav === 'register') {
-                // Carregar viagens para o select (apenas as que o usuário pode postar)
+                // Carregar viagens para o select
                 const { data: ownTrips } = await db
                     .from('trips')
                     .select('id, title')
@@ -661,21 +677,24 @@ function setupEventListeners() {
             }
             else if (nav === 'details') {
                 if (currentTripId) {
-                    window.location.href = `trip-detail.html?id=${currentTripId}`;
+                    // USANDO buildUrl
+                    window.location.href = buildUrl(`trip-detail.html?id=${currentTripId}`);
                 } else {
                     showToast('Selecione uma viagem no menu lateral', 'warning');
                 }
             }
             else if (nav === 'costs') {
                 if (currentTripId) {
-                    window.location.href = `costs.html?id=${currentTripId}`;
+                    // USANDO buildUrl
+                    window.location.href = buildUrl(`costs.html?id=${currentTripId}`);
                 } else {
                     showToast('Selecione uma viagem no menu lateral', 'warning');
                 }
             }
             else if (nav === 'chat') {
                 if (currentTripId) {
-                    window.location.href = `chat.html?id=${currentTripId}`;
+                    // USANDO buildUrl
+                    window.location.href = buildUrl(`chat.html?id=${currentTripId}`);
                 } else {
                     showToast('Selecione uma viagem no menu lateral', 'warning');
                 }
@@ -683,14 +702,15 @@ function setupEventListeners() {
         });
     });
     
-    // Sidebar actions
+    // Sidebar actions - COM buildUrl
     document.querySelectorAll('.sidebar-item').forEach(item => {
         item.addEventListener('click', async () => {
             const action = item.dataset.action;
             const tripId = item.dataset.tripId;
             
             if (action === 'profile') {
-                window.location.href = 'profile.html';
+                // USANDO buildUrl
+                window.location.href = buildUrl('profile.html');
             } 
             else if (action === 'create-trip') {
                 await createTrip();
@@ -707,7 +727,8 @@ function setupEventListeners() {
             } 
             else if (action === 'logout') {
                 await db.auth.signOut();
-                window.location.href = 'index.html';
+                // USANDO buildUrl
+                window.location.href = buildUrl('index.html');
             }
         });
     });
@@ -716,7 +737,8 @@ function setupEventListeners() {
     const profileAvatar = document.getElementById('profileAvatar');
     if (profileAvatar) {
         profileAvatar.addEventListener('click', () => {
-            window.location.href = 'profile.html';
+            // USANDO buildUrl
+            window.location.href = buildUrl('profile.html');
         });
     }
 }

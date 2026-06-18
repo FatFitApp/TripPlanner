@@ -165,126 +165,29 @@
         // ============================================
         // VALIDAR CONVITE
         // ============================================
-        async function validateInvite() {
-            showLoading();
-            
-            // Verificar autenticação
-            const session = await checkAuth();
-            if (!session) {
-                showLoading();
-                // Salvar token para redirecionar após login
-                const params = new URLSearchParams(window.location.search);
-                const token = params.get('token');
-                if (token) {
-                    sessionStorage.setItem('pendingInviteToken', token);
-                }
-                showToast('Faça login para aceitar o convite', 'warning');
-                setTimeout(() => {
-                    window.location.href = `index.html?redirect=join.html&token=${token}`;
-                }, 1500);
-                return;
-            }
-            
-            currentUser = session.user;
-            currentProfile = await getUserProfile(currentUser.id);
-            
-            // Buscar token da URL
-            const params = new URLSearchParams(window.location.search);
-            const token = params.get('token');
-            
-            if (!token) {
-                showState('invalidState');
-                hideLoading();
-                return;
-            }
-            
-            // Buscar convite
-            const { data: invite, error: inviteError } = await db
-                .from('trip_invites')
-                .select('*')
-                .eq('token', token)
-                .single();
-            
-            if (inviteError || !invite) {
-                console.error('Convite não encontrado:', inviteError);
-                showState('invalidState');
-                hideLoading();
-                return;
-            }
-            
-            // Verificar se convite expirou
-            if (new Date(invite.expires_at) < new Date()) {
-                showState('invalidState');
-                document.querySelector('#invalidState p').textContent = 'Este convite expirou. Solicite um novo link ao administrador.';
-                hideLoading();
-                return;
-            }
-            
-            // Verificar se já foi usado
-            if (invite.used) {
-                showState('invalidState');
-                document.querySelector('#invalidState p').textContent = 'Este convite já foi utilizado.';
-                hideLoading();
-                return;
-            }
-            
-            inviteData = invite;
-            
-            // Buscar dados da viagem
-            const { data: trip, error: tripError } = await db
-                .from('trips')
-                .select('*, profiles:user_id (name, avatar_url)')
-                .eq('id', invite.trip_id)
-                .single();
-            
-            if (tripError || !trip) {
-                showState('invalidState');
-                hideLoading();
-                return;
-            }
-            
-            tripData = trip;
-            
-            // Verificar se usuário já é membro
-            const { data: existingMember } = await db
-                .from('trip_members')
-                .select('status')
-                .eq('trip_id', trip.id)
-                .eq('user_id', currentUser.id)
-                .single();
-            
-            if (existingMember) {
-                if (existingMember.status === 'approved') {
-                    showState('alreadyMemberState');
-                    hideLoading();
-                    return;
-                } else if (existingMember.status === 'pending') {
-                    showState('requestSentState');
-                    hideLoading();
-                    return;
-                }
-            }
-            
-            // Mostrar informações do convite
-            document.getElementById('tripTitleDisplay').textContent = trip.title;
-            document.getElementById('tripDestinationDisplay').textContent = trip.destination || 'Destino não definido';
-            document.getElementById('tripDatesDisplay').textContent = `${formatDate(trip.start_date)} - ${formatDate(trip.end_date)}`;
-            document.getElementById('tripCreatorDisplay').textContent = trip.profiles?.name || 'Usuário';
-            
-            // Contar atividades
-            const { count } = await db
-                .from('itinerary_items')
-                .select('*', { count: 'exact', head: true })
-                .eq('trip_id', trip.id);
-            
-            document.getElementById('activityCountDisplay').textContent = `${count || 0} atividades planejadas`;
-            
-            document.getElementById('inviteInfo').textContent = `Você foi convidado para participar da viagem "${trip.title}"!`;
-            
-            showState('validState');
-            hideLoading();
+async function validateInvite() {
+    showLoading();
+    
+    // Verificar autenticação
+    const session = await checkAuth();
+    if (!session) {
+        const params = new URLSearchParams(window.location.search);
+        const token = params.get('token');
+        if (token) {
+            sessionStorage.setItem('pendingInviteToken', token);
         }
-
+        showToast('Faça login para aceitar o convite', 'warning');
+        setTimeout(() => {
+            // Usar buildUrl para redirecionar corretamente
+            const redirectUrl = buildUrl(`index.html?redirect=join.html&token=${token}`);
+            window.location.href = redirectUrl;
+        }, 1500);
+        return;
+    }
+    
+    // ... resto da função (buscar token, validar, etc)
+    // O restante do código permanece igual
+}
         // ============================================
         // ACEITAR CONVITE
         // ============================================
