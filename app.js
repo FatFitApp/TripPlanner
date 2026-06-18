@@ -179,6 +179,9 @@ async function loadSidebarInfo() {
 // ============================================
 // LOAD TRIPS FOR SIDEBAR
 // ============================================
+// ============================================
+// LOAD TRIPS FOR SIDEBAR (COM APAGAR E SAIR)
+// ============================================
 async function loadTripsForSidebar() {
     console.log('🔄 Carregando viagens para o sidebar...');
     
@@ -257,20 +260,41 @@ async function loadTripsForSidebar() {
             return;
         }
         
-        container.innerHTML = sortedTrips.map(trip => `
-            <div class="sidebar-item" data-trip-id="${trip.id}" data-action="select-trip" style="cursor: pointer;">
-                <i class="fas fa-map-marker-alt"></i>
-                <div style="flex: 1;">
-                    <div><strong>${escapeHtml(trip.title)}</strong> ${trip.role === 'owner' ? '👑' : '🤝'}</div>
-                    <div style="font-size: 11px; color: var(--gray-500);">
-                        ${trip.start_date ? formatDate(trip.start_date) : 'Data não definida'} 
-                        ${trip.end_date ? `- ${formatDate(trip.end_date)}` : ''}
+        container.innerHTML = sortedTrips.map(trip => {
+            const isOwner = trip.role === 'owner';
+            return `
+                <div class="sidebar-trip-item" style="margin-bottom: 4px;">
+                    <div class="sidebar-item" data-trip-id="${trip.id}" data-action="select-trip" style="cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--gray-50);">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="display: flex; align-items: center; gap: 4px;">
+                                <strong style="font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(trip.title)}</strong>
+                                <span style="font-size: 11px;">${isOwner ? '👑' : '🤝'}</span>
+                            </div>
+                            <div style="font-size: 11px; color: var(--gray-500);">
+                                ${trip.start_date ? formatDate(trip.start_date) : 'Data não definida'} 
+                                ${trip.end_date ? `- ${formatDate(trip.end_date)}` : ''}
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 4px; padding: 0 12px 8px 12px;">
+                        ${isOwner ? `
+                            <button class="btn-danger" style="flex: 1; padding: 4px 8px; font-size: 11px; border: none; border-radius: var(--radius-sm); cursor: pointer;" 
+                                    onclick="event.stopPropagation(); confirmDeleteTrip('${trip.id}', '${escapeHtml(trip.title)}')">
+                                <i class="fas fa-trash"></i> Apagar
+                            </button>
+                        ` : `
+                            <button class="btn-secondary" style="flex: 1; padding: 4px 8px; font-size: 11px; border: none; border-radius: var(--radius-sm); cursor: pointer; background: var(--gray-200);" 
+                                    onclick="event.stopPropagation(); confirmLeaveTrip('${trip.id}', '${escapeHtml(trip.title)}')">
+                                <i class="fas fa-sign-out-alt"></i> Sair
+                            </button>
+                        `}
                     </div>
                 </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
         
-        // Adicionar event listeners
+        // Adicionar event listeners para selecionar viagem
         document.querySelectorAll('.sidebar-item[data-action="select-trip"]').forEach(item => {
             item.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -759,3 +783,216 @@ window.addComment = addComment;
 window.likePost = likePost;
 window.createTrip = createTrip;
 window.loadTimeline = loadTimeline;
+
+// ============================================
+// CONFIRMAR APAGAR VIAGEM (ADMIN)
+// ============================================
+function confirmDeleteTrip(tripId, tripTitle) {
+    // Criar modal de confirmação dinâmico
+    const modal = document.createElement('div');
+    modal.className = 'modal open';
+    modal.style.display = 'flex';
+    modal.id = 'deleteTripModal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header" style="border-bottom-color: var(--danger);">
+                <h3 style="color: var(--danger);">⚠️ Apagar Viagem</h3>
+                <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 16px;">
+                    Tem certeza que deseja apagar a viagem <strong>"${escapeHtml(tripTitle)}"</strong>?
+                </p>
+                <div style="background: var(--gray-50); padding: 12px; border-radius: var(--radius-sm); margin-bottom: 16px;">
+                    <p style="font-size: 13px; color: var(--gray-600);">
+                        <i class="fas fa-exclamation-triangle" style="color: var(--danger);"></i>
+                        Esta ação irá:
+                    </p>
+                    <ul style="font-size: 13px; color: var(--gray-600); margin-left: 20px; margin-top: 4px;">
+                        <li>Apagar a viagem e todos os dados relacionados</li>
+                        <li>Remover todos os membros</li>
+                        <li>Excluir roteiro, posts e mensagens</li>
+                    </ul>
+                    <p style="font-size: 13px; color: var(--danger); margin-top: 8px; font-weight: 600;">
+                        Esta ação NÃO pode ser desfeita!
+                    </p>
+                </div>
+                <div class="flex gap-1">
+                    <button class="btn-secondary" style="flex: 1;" onclick="this.closest('.modal').remove()">Cancelar</button>
+                    <button class="btn-danger" style="flex: 1;" onclick="deleteTrip('${tripId}')">
+                        <i class="fas fa-trash"></i> Sim, Apagar
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    
+    // Fechar ao clicar fora
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.remove();
+    });
+}
+
+// ============================================
+// APAGAR VIAGEM (ADMIN)
+// ============================================
+async function deleteTrip(tripId) {
+    showLoading();
+    
+    // Fechar modal
+    const modal = document.getElementById('deleteTripModal');
+    if (modal) modal.remove();
+    
+    // Buscar todas as imagens para deletar do storage
+    try {
+        // Buscar posts com imagens
+        const { data: posts } = await db
+            .from('social_posts')
+            .select('image_url')
+            .eq('trip_id', tripId)
+            .not('image_url', 'is', null);
+        
+        // Buscar itens do roteiro com imagens
+        const { data: itineraryItems } = await db
+            .from('itinerary_items')
+            .select('planned_photo_url, actual_photo_url')
+            .eq('trip_id', tripId);
+        
+        // Coletar todas as URLs de imagem
+        const imageUrls = [];
+        if (posts) {
+            posts.forEach(p => {
+                if (p.image_url) imageUrls.push(p.image_url);
+            });
+        }
+        if (itineraryItems) {
+            itineraryItems.forEach(item => {
+                if (item.planned_photo_url) imageUrls.push(item.planned_photo_url);
+                if (item.actual_photo_url) imageUrls.push(item.actual_photo_url);
+            });
+        }
+        
+        // Excluir imagens do storage
+        for (const url of imageUrls) {
+            try {
+                // Extrair o caminho da URL
+                const urlParts = url.split('/');
+                const bucketIndex = urlParts.indexOf('post-images') !== -1 ? 'post-images' : 
+                                   urlParts.indexOf('itinerary-photos') !== -1 ? 'itinerary-photos' : null;
+                if (bucketIndex) {
+                    const startIdx = urlParts.indexOf(bucketIndex);
+                    const filePath = urlParts.slice(startIdx + 1).join('/');
+                    if (filePath) {
+                        await db.storage.from(bucketIndex).remove([filePath]);
+                    }
+                }
+            } catch (storageError) {
+                console.warn('Erro ao excluir imagem do storage:', storageError);
+            }
+        }
+    } catch (err) {
+        console.warn('Erro ao processar imagens:', err);
+    }
+    
+    // Excluir a viagem (ON DELETE CASCADE vai remover tudo)
+    const { error } = await db
+        .from('trips')
+        .delete()
+        .eq('id', tripId)
+        .eq('user_id', currentUser.id); // Garantir que só o admin pode apagar
+    
+    hideLoading();
+    
+    if (error) {
+        showToast('Erro ao apagar viagem: ' + error.message, 'error');
+        return;
+    }
+    
+    showToast('Viagem apagada com sucesso!', 'success');
+    
+    // Limpar currentTripId se for a viagem atual
+    if (currentTripId === tripId) {
+        currentTripId = null;
+    }
+    
+    // Recarregar lista de viagens
+    await loadTripsForSidebar();
+}
+
+// ============================================
+// CONFIRMAR SAIR DA VIAGEM (MEMBRO)
+// ============================================
+function confirmLeaveTrip(tripId, tripTitle) {
+    // Criar modal de confirmação dinâmico
+    const modal = document.createElement('div');
+    modal.className = 'modal open';
+    modal.style.display = 'flex';
+    modal.id = 'leaveTripModal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header" style="border-bottom-color: var(--warning);">
+                <h3 style="color: var(--warning);">🚪 Sair da Viagem</h3>
+                <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 16px;">
+                    Tem certeza que deseja sair da viagem <strong>"${escapeHtml(tripTitle)}"</strong>?
+                </p>
+                <div style="background: var(--gray-50); padding: 12px; border-radius: var(--radius-sm); margin-bottom: 16px;">
+                    <p style="font-size: 13px; color: var(--gray-600);">
+                        <i class="fas fa-info-circle" style="color: var(--warning);"></i>
+                        Você será removido da viagem, mas ela continuará para os outros membros.
+                    </p>
+                </div>
+                <div class="flex gap-1">
+                    <button class="btn-secondary" style="flex: 1;" onclick="this.closest('.modal').remove()">Cancelar</button>
+                    <button class="btn-danger" style="flex: 1;" onclick="leaveTrip('${tripId}')">
+                        <i class="fas fa-sign-out-alt"></i> Sim, Sair
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    
+    // Fechar ao clicar fora
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.remove();
+    });
+}
+
+// ============================================
+// SAIR DA VIAGEM (MEMBRO)
+// ============================================
+async function leaveTrip(tripId) {
+    showLoading();
+    
+    // Fechar modal
+    const modal = document.getElementById('leaveTripModal');
+    if (modal) modal.remove();
+    
+    // Remover o usuário da trip_members
+    const { error } = await db
+        .from('trip_members')
+        .delete()
+        .eq('trip_id', tripId)
+        .eq('user_id', currentUser.id);
+    
+    hideLoading();
+    
+    if (error) {
+        showToast('Erro ao sair da viagem: ' + error.message, 'error');
+        return;
+    }
+    
+    showToast('Você saiu da viagem!', 'success');
+    
+    // Limpar currentTripId se for a viagem atual
+    if (currentTripId === tripId) {
+        currentTripId = null;
+    }
+    
+    // Recarregar lista de viagens
+    await loadTripsForSidebar();
+}

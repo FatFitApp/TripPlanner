@@ -206,6 +206,7 @@
         </div>
     </div>
 
+    
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
     <script>
@@ -220,9 +221,34 @@
         let selectedPlannedPhoto = null;
         let currentTripId = null;
 
-        // ============================================
-        // UTILITÁRIOS
-        // ============================================
+// ============================================
+// UTILITÁRIO DE CAMINHO BASE (FALLBACK)
+// ============================================
+function getBasePath() {
+    if (typeof buildUrl !== 'undefined') {
+        // Se buildUrl existir, usar ela
+        return buildUrl('');
+    }
+    
+    // Fallback manual
+    if (window.location.hostname.includes('github.io')) {
+        const pathParts = window.location.pathname.split('/');
+        if (pathParts.length > 1 && pathParts[1]) {
+            return '/' + pathParts[1] + '/';
+        }
+    }
+    return '/';
+}
+
+// Função buildUrl de fallback
+if (typeof buildUrl === 'undefined') {
+    window.buildUrl = function(path) {
+        const base = getBasePath();
+        const cleanPath = path.startsWith('/') ? path.substring(1) : path;
+        return base + cleanPath;
+    };
+}
+
         function showToast(message, type = 'info') {
             const existing = document.querySelector('.toast');
             if (existing) existing.remove();
@@ -810,6 +836,50 @@ async function generateNewInvite() {
     await loadInvites();
     
     if (data && data[0]) {
+        // 🔧 CORREÇÃO: Usar buildUrl para gerar o link completo
+        const link = buildUrl('join.html?token=' + data[0].token);
+        
+        try {
+            await navigator.clipboard.writeText(link);
+            showToast('Link copiado para a área de transferência!', 'success');
+        } catch (err) {
+            // Fallback para navegadores sem suporte a clipboard
+            const input = document.createElement('input');
+            input.value = link;
+            document.body.appendChild(input);
+            input.select();
+            document.execCommand('copy');
+            document.body.removeChild(input);
+            showToast('Link copiado!', 'success');
+        }
+    }
+}
+    showLoading();
+    
+    const token = generateToken();
+    
+    const { data, error } = await db
+        .from('trip_invites')
+        .insert({
+            trip_id: currentTripId,
+            token: token,
+            created_by: currentUser.id,
+            created_at: new Date(),
+            expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+        })
+        .select();
+    
+    hideLoading();
+    
+    if (error) {
+        showToast('Erro ao gerar convite', 'error');
+        return;
+    }
+    
+    showToast('Link gerado com sucesso!', 'success');
+    await loadInvites();
+    
+    if (data && data[0]) {
         // Usar a função buildUrl para criar o link correto
         const link = buildUrl(`join.html?token=${data[0].token}`);
         
@@ -827,7 +897,7 @@ async function generateNewInvite() {
             showToast('Link copiado!', 'success');
         }
     }
-}
+
         async function deleteInvite(inviteId) {
             if (!confirm('Tem certeza que deseja excluir este convite?')) return;
             
