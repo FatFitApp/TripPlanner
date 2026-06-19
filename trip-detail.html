@@ -7,11 +7,31 @@
     <title>Detalhes da Viagem - Trip Planner</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        // ============================================
+        // FALLBACK buildUrl
+        // ============================================
+        if (typeof buildUrl === 'undefined') {
+            window.buildUrl = function(path) {
+                if (window.location.hostname.includes('github.io')) {
+                    const pathParts = window.location.pathname.split('/');
+                    if (pathParts.length > 1 && pathParts[1]) {
+                        const base = '/' + pathParts[1] + '/';
+                        const cleanPath = path.startsWith('/') ? path.substring(1) : path;
+                        return base + cleanPath;
+                    }
+                }
+                return '/' + (path.startsWith('/') ? path.substring(1) : path);
+            };
+            console.log('⚠️ buildUrl carregado via fallback no trip-detail');
+        }
+    </script>
+    <script src="config.js"></script>
 </head>
 <body>
     <div class="home-container">
         <header class="app-header">
-            <button class="menu-btn" onclick="window.location.href='home.html'">
+            <button class="menu-btn" onclick="window.location.href=buildUrl('home.html')">
                 <i class="fas fa-arrow-left"></i>
             </button>
             <h2 id="tripTitleHeader">Detalhes da Viagem</h2>
@@ -76,7 +96,7 @@
 
         <!-- Bottom Navigation -->
         <nav class="bottom-nav">
-            <button class="nav-item" onclick="window.location.href='home.html'">
+            <button class="nav-item" onclick="window.location.href=buildUrl('home.html')">
                 <i class="fas fa-home"></i>
                 <span>Timeline</span>
             </button>
@@ -84,15 +104,15 @@
                 <i class="fas fa-clipboard-list"></i>
                 <span>Detalhes</span>
             </button>
-            <button class="nav-item nav-item-center" onclick="window.location.href='home.html?action=register'">
+            <button class="nav-item nav-item-center" onclick="window.location.href=buildUrl('home.html?action=register')">
                 <i class="fas fa-camera"></i>
                 <span>Registrar</span>
             </button>
-            <button class="nav-item" onclick="window.location.href=`costs.html?id=${currentTripId || ''}`">
+            <button class="nav-item" onclick="window.location.href=buildUrl('costs.html')">
                 <i class="fas fa-chart-line"></i>
                 <span>Custos</span>
             </button>
-            <button class="nav-item" onclick="window.location.href=`chat.html?id=${currentTripId || ''}`">
+            <button class="nav-item" onclick="window.location.href=buildUrl('chat.html')">
                 <i class="fas fa-comment-dots"></i>
                 <span>Chat</span>
             </button>
@@ -206,7 +226,6 @@
         </div>
     </div>
 
-    
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
     <script>
@@ -221,48 +240,23 @@
         let selectedPlannedPhoto = null;
         let currentTripId = null;
 
-// ============================================
-// UTILITÁRIO DE CAMINHO BASE (FALLBACK)
-// ============================================
-function getBasePath() {
-    if (typeof buildUrl !== 'undefined') {
-        // Se buildUrl existir, usar ela
-        return buildUrl('');
-    }
-    
-    // Fallback manual
-    if (window.location.hostname.includes('github.io')) {
-        const pathParts = window.location.pathname.split('/');
-        if (pathParts.length > 1 && pathParts[1]) {
-            return '/' + pathParts[1] + '/';
-        }
-    }
-    return '/';
-}
-
-// Função buildUrl de fallback
-if (typeof buildUrl === 'undefined') {
-    window.buildUrl = function(path) {
-        const base = getBasePath();
-        const cleanPath = path.startsWith('/') ? path.substring(1) : path;
-        return base + cleanPath;
-    };
-}
-
-        function showToast(message, type = 'info') {
+        // ============================================
+        // UTILITÁRIOS
+        // ============================================
+        function showToast(message, type) {
             const existing = document.querySelector('.toast');
             if (existing) existing.remove();
             
             const toast = document.createElement('div');
-            toast.className = `toast toast-${type}`;
-            toast.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i><span>${message}</span>`;
+            toast.className = 'toast toast-' + type;
+            toast.innerHTML = '<i class="fas ' + (type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle') + '"></i><span>' + message + '</span>';
             document.body.appendChild(toast);
             
-            setTimeout(() => {
+            setTimeout(function() {
                 toast.classList.add('show');
-                setTimeout(() => {
+                setTimeout(function() {
                     toast.classList.remove('show');
-                    setTimeout(() => toast.remove(), 300);
+                    setTimeout(function() { toast.remove(); }, 300);
                 }, 3000);
             }, 10);
         }
@@ -299,162 +293,6 @@ if (typeof buildUrl === 'undefined') {
             document.getElementById('removePhotoBtn').style.display = 'none';
         }
 
-        // ============================================
-        // CARREGAR DADOS DA VIAGEM
-        // ============================================
-        async function loadTripDetails() {
-            showLoading();
-            
-            const session = await checkAuth();
-            if (!session) return;
-            currentUser = session.user;
-            currentProfile = await getUserProfile(currentUser.id);
-            
-            const params = new URLSearchParams(window.location.search);
-            currentTripId = params.get('id');
-            
-            if (!currentTripId) {
-                showToast('Viagem não encontrada', 'error');
-                setTimeout(() => window.location.href = 'home.html', 1500);
-                return;
-            }
-            
-            // Buscar dados da viagem
-            const { data: trip, error: tripError } = await db
-                .from('trips')
-                .select('*')
-                .eq('id', currentTripId)
-                .single();
-            
-            if (tripError || !trip) {
-                showToast('Erro ao carregar viagem', 'error');
-                hideLoading();
-                return;
-            }
-            
-            currentTrip = trip;
-            
-            // Verificar se usuário é admin
-            const isAdmin = trip.user_id === currentUser.id;
-            
-            document.getElementById('tripTitle').textContent = trip.title;
-            document.getElementById('tripTitleHeader').textContent = trip.title;
-            document.getElementById('tripDestination').textContent = trip.destination || 'Destino não definido';
-            document.getElementById('tripDates').textContent = `${formatDate(trip.start_date)} - ${formatDate(trip.end_date)}`;
-            
-            // Mostrar botão de convite apenas para admin
-            const inviteBtn = document.getElementById('inviteBtn');
-            if (isAdmin) {
-                inviteBtn.style.display = 'block';
-            }
-            
-            await loadItinerary();
-            await loadMembers();
-            await loadInvites();
-            
-            hideLoading();
-        }
-
-        // ============================================
-        // TABS
-        // ============================================
-        function switchTab(tab) {
-            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(content => content.style.display = 'none');
-            
-            document.querySelector(`.tab-btn[data-tab="${tab}"]`).classList.add('active');
-            document.getElementById(`tab-${tab}`).style.display = 'block';
-        }
-
-        // ============================================
-        // ITINERARY (Roteiro)
-        // ============================================
-        async function loadItinerary() {
-            const { data, error } = await db
-                .from('itinerary_items')
-                .select('*')
-                .eq('trip_id', currentTripId)
-                .order('day_number', { ascending: true });
-            
-            if (error) {
-                console.error('Erro ao carregar roteiro:', error);
-                return;
-            }
-            
-            itineraryItems = data || [];
-            renderItinerary();
-        }
-
-        function renderItinerary() {
-            const container = document.getElementById('itineraryContainer');
-            
-            if (itineraryItems.length === 0) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <i class="fas fa-calendar-alt"></i>
-                        <p>Nenhum item no roteiro</p>
-                        <button class="btn-primary" onclick="openAddItemModal()">Adicionar primeiro item</button>
-                    </div>
-                `;
-                return;
-            }
-            
-            const days = [...new Set(itineraryItems.map(i => i.day_number))].sort();
-            let html = '';
-            
-            days.forEach(day => {
-                const dayItems = itineraryItems.filter(i => i.day_number === day);
-                html += `<div class="card"><h4>📅 Dia ${day}</h4>`;
-                dayItems.forEach(item => {
-                    const hasPlannedPhoto = item.planned_photo_url && item.planned_photo_url !== '';
-                    const hasActualPhoto = item.actual_photo_url && item.actual_photo_url !== '';
-                    
-                    html += `
-                        <div class="itinerary-item" style="border-left: 3px solid var(--primary); padding-left: 12px; margin: 12px 0; background: var(--gray-50); border-radius: var(--radius-sm); padding: 12px;">
-                            <div class="flex justify-between align-center">
-                                <strong>${escapeHtml(item.title)}</strong>
-                                <div>
-                                    <button class="btn-icon" onclick="editItem('${item.id}')" title="Editar">
-                                        <i class="fas fa-edit" style="color: var(--primary);"></i>
-                                    </button>
-                                    <button class="btn-icon" onclick="deleteItem('${item.id}')" title="Excluir">
-                                        <i class="fas fa-trash" style="color: var(--danger);"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            <div style="font-size: 12px; color: var(--gray-500);">
-                                ${item.start_time ? item.start_time.substring(0,5) : '--:--'} - ${item.end_time ? item.end_time.substring(0,5) : '--:--'}
-                            </div>
-                            ${item.address ? `<div style="font-size: 12px;"><i class="fas fa-map-marker-alt"></i> ${escapeHtml(item.address)}</div>` : ''}
-                            <div style="font-size: 13px; color: var(--success);">💰 ${formatCurrency(item.planned_cost)}</div>
-                            
-                            <!-- Fotos -->
-                            <div style="display: flex; gap: 8px; margin-top: 8px;">
-                                ${hasPlannedPhoto ? `
-                                    <div style="position: relative;">
-                                        <img src="${item.planned_photo_url}" style="width: 60px; height: 60px; object-fit: cover; border-radius: var(--radius-sm); border: 2px solid var(--primary);">
-                                        <div style="position: absolute; top: -4px; left: -4px; background: var(--primary); color: white; font-size: 8px; padding: 1px 4px; border-radius: 4px;">PLANEJADO</div>
-                                    </div>
-                                ` : ''}
-                                ${hasActualPhoto ? `
-                                    <div style="position: relative;">
-                                        <img src="${item.actual_photo_url}" style="width: 60px; height: 60px; object-fit: cover; border-radius: var(--radius-sm); border: 2px solid var(--success);">
-                                        <div style="position: absolute; top: -4px; left: -4px; background: var(--success); color: white; font-size: 8px; padding: 1px 4px; border-radius: 4px;">REALIZADO</div>
-                                    </div>
-                                ` : ''}
-                            </div>
-                        </div>
-                    `;
-                });
-                html += `</div>`;
-            });
-            
-            container.innerHTML = html;
-        }
-
-        // ============================================
-        // ADICIONAR/EDITAR ITEM
-        // ============================================
         function openAddItemModal() {
             editingItemId = null;
             document.getElementById('itemModalTitle').textContent = 'Adicionar ao Roteiro';
@@ -471,8 +309,167 @@ if (typeof buildUrl === 'undefined') {
             openModal('itemModal');
         }
 
-        async function editItem(itemId) {
-            const item = itineraryItems.find(i => i.id === itemId);
+        // ============================================
+        // TABS
+        // ============================================
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(function(btn) {
+                btn.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-content').forEach(function(content) {
+                content.style.display = 'none';
+            });
+            
+            document.querySelector('.tab-btn[data-tab="' + tab + '"]').classList.add('active');
+            document.getElementById('tab-' + tab).style.display = 'block';
+        }
+
+        // ============================================
+        // CARREGAR DADOS DA VIAGEM
+        // ============================================
+        async function loadTripDetails() {
+            showLoading();
+            
+            var session = await checkAuth();
+            if (!session) {
+                hideLoading();
+                return;
+            }
+            currentUser = session.user;
+            currentProfile = await getUserProfile(currentUser.id);
+            
+            var params = new URLSearchParams(window.location.search);
+            currentTripId = params.get('id');
+            
+            if (!currentTripId) {
+                showToast('Viagem não encontrada', 'error');
+                setTimeout(function() {
+                    window.location.href = buildUrl('home.html');
+                }, 1500);
+                return;
+            }
+            
+            var { data: trip, error: tripError } = await db
+                .from('trips')
+                .select('*')
+                .eq('id', currentTripId)
+                .single();
+            
+            if (tripError || !trip) {
+                showToast('Erro ao carregar viagem', 'error');
+                hideLoading();
+                return;
+            }
+            
+            currentTrip = trip;
+            
+            var isAdmin = trip.user_id === currentUser.id;
+            
+            document.getElementById('tripTitle').textContent = trip.title;
+            document.getElementById('tripTitleHeader').textContent = trip.title;
+            document.getElementById('tripDestination').textContent = trip.destination || 'Destino não definido';
+            document.getElementById('tripDates').textContent = formatDate(trip.start_date) + ' - ' + formatDate(trip.end_date);
+            
+            var inviteBtn = document.getElementById('inviteBtn');
+            if (isAdmin) {
+                inviteBtn.style.display = 'block';
+            }
+            
+            await loadItinerary();
+            await loadMembers();
+            await loadInvites();
+            
+            hideLoading();
+        }
+
+        // ============================================
+        // ITINERARY
+        // ============================================
+        async function loadItinerary() {
+            var { data, error } = await db
+                .from('itinerary_items')
+                .select('*')
+                .eq('trip_id', currentTripId)
+                .order('day_number', { ascending: true });
+            
+            if (error) {
+                console.error('Erro ao carregar roteiro:', error);
+                return;
+            }
+            
+            itineraryItems = data || [];
+            renderItinerary();
+        }
+
+        function renderItinerary() {
+            var container = document.getElementById('itineraryContainer');
+            
+            if (itineraryItems.length === 0) {
+                container.innerHTML = '<div class="empty-state"><i class="fas fa-calendar-alt"></i><p>Nenhum item no roteiro</p><button class="btn-primary" onclick="openAddItemModal()">Adicionar primeiro item</button></div>';
+                return;
+            }
+            
+            var days = [];
+            for (var i = 0; i < itineraryItems.length; i++) {
+                if (days.indexOf(itineraryItems[i].day_number) === -1) {
+                    days.push(itineraryItems[i].day_number);
+                }
+            }
+            days.sort();
+            
+            var html = '';
+            for (var d = 0; d < days.length; d++) {
+                var day = days[d];
+                var dayItems = itineraryItems.filter(function(item) { return item.day_number === day; });
+                html += '<div class="card"><h4>📅 Dia ' + day + '</h4>';
+                for (var j = 0; j < dayItems.length; j++) {
+                    var item = dayItems[j];
+                    var hasPlannedPhoto = item.planned_photo_url && item.planned_photo_url !== '';
+                    var hasActualPhoto = item.actual_photo_url && item.actual_photo_url !== '';
+                    
+                    html += '<div class="itinerary-item" style="border-left: 3px solid var(--primary); padding-left: 12px; margin: 12px 0; background: var(--gray-50); border-radius: var(--radius-sm); padding: 12px;">';
+                    html += '<div class="flex justify-between align-center">';
+                    html += '<strong>' + escapeHtml(item.title) + '</strong>';
+                    html += '<div>';
+                    html += '<button class="btn-icon" onclick="editItem(\'' + item.id + '\')" title="Editar"><i class="fas fa-edit" style="color: var(--primary);"></i></button>';
+                    html += '<button class="btn-icon" onclick="deleteItem(\'' + item.id + '\')" title="Excluir"><i class="fas fa-trash" style="color: var(--danger);"></i></button>';
+                    html += '</div></div>';
+                    html += '<div style="font-size: 12px; color: var(--gray-500);">' + (item.start_time ? item.start_time.substring(0,5) : '--:--') + ' - ' + (item.end_time ? item.end_time.substring(0,5) : '--:--') + '</div>';
+                    if (item.address) {
+                        html += '<div style="font-size: 12px;"><i class="fas fa-map-marker-alt"></i> ' + escapeHtml(item.address) + '</div>';
+                    }
+                    html += '<div style="font-size: 13px; color: var(--success);">💰 ' + formatCurrency(item.planned_cost) + '</div>';
+                    
+                    if (hasPlannedPhoto || hasActualPhoto) {
+                        html += '<div style="display: flex; gap: 8px; margin-top: 8px;">';
+                        if (hasPlannedPhoto) {
+                            html += '<div style="position: relative;"><img src="' + item.planned_photo_url + '" style="width: 60px; height: 60px; object-fit: cover; border-radius: var(--radius-sm); border: 2px solid var(--primary);"><div style="position: absolute; top: -4px; left: -4px; background: var(--primary); color: white; font-size: 8px; padding: 1px 4px; border-radius: 4px;">PLANEJADO</div></div>';
+                        }
+                        if (hasActualPhoto) {
+                            html += '<div style="position: relative;"><img src="' + item.actual_photo_url + '" style="width: 60px; height: 60px; object-fit: cover; border-radius: var(--radius-sm); border: 2px solid var(--success);"><div style="position: absolute; top: -4px; left: -4px; background: var(--success); color: white; font-size: 8px; padding: 1px 4px; border-radius: 4px;">REALIZADO</div></div>';
+                        }
+                        html += '</div>';
+                    }
+                    
+                    html += '</div>';
+                }
+                html += '</div>';
+            }
+            
+            container.innerHTML = html;
+        }
+
+        // ============================================
+        // EDITAR / EXCLUIR ITEM
+        // ============================================
+        function editItem(itemId) {
+            var item = null;
+            for (var i = 0; i < itineraryItems.length; i++) {
+                if (itineraryItems[i].id === itemId) {
+                    item = itineraryItems[i];
+                    break;
+                }
+            }
             if (!item) return;
             
             editingItemId = itemId;
@@ -499,7 +496,7 @@ if (typeof buildUrl === 'undefined') {
             
             showLoading();
             
-            const { error } = await db
+            var { error } = await db
                 .from('itinerary_items')
                 .delete()
                 .eq('id', itemId);
@@ -515,14 +512,17 @@ if (typeof buildUrl === 'undefined') {
             await loadItinerary();
         }
 
+        // ============================================
+        // SALVAR ITEM
+        // ============================================
         async function saveItineraryItem() {
-            const title = document.getElementById('itemTitle').value.trim();
-            const day = parseInt(document.getElementById('itemDay').value);
-            const startTime = document.getElementById('itemStartTime').value;
-            const endTime = document.getElementById('itemEndTime').value;
-            const address = document.getElementById('itemAddress').value.trim();
-            const cost = parseFloat(document.getElementById('itemCost').value) || 0;
-            const editingId = document.getElementById('editingItemId').value;
+            var title = document.getElementById('itemTitle').value.trim();
+            var day = parseInt(document.getElementById('itemDay').value);
+            var startTime = document.getElementById('itemStartTime').value;
+            var endTime = document.getElementById('itemEndTime').value;
+            var address = document.getElementById('itemAddress').value.trim();
+            var cost = parseFloat(document.getElementById('itemCost').value) || 0;
+            var editingId = document.getElementById('editingItemId').value;
             
             if (!title || !day) {
                 showToast('Preencha o título e o dia', 'error');
@@ -531,7 +531,7 @@ if (typeof buildUrl === 'undefined') {
             
             showLoading();
             
-            let plannedPhotoUrl = null;
+            var plannedPhotoUrl = null;
             if (selectedPlannedPhoto) {
                 try {
                     plannedPhotoUrl = await uploadImage(selectedPlannedPhoto, 'itinerary-photos', currentTripId);
@@ -542,7 +542,7 @@ if (typeof buildUrl === 'undefined') {
                 }
             }
             
-            const itemData = {
+            var itemData = {
                 trip_id: currentTripId,
                 day_number: day,
                 start_time: startTime || null,
@@ -554,12 +554,11 @@ if (typeof buildUrl === 'undefined') {
             };
             
             if (editingId) {
-                // UPDATE
                 if (plannedPhotoUrl) {
                     itemData.planned_photo_url = plannedPhotoUrl;
                 }
                 
-                const { error } = await db
+                var { error } = await db
                     .from('itinerary_items')
                     .update(itemData)
                     .eq('id', editingId);
@@ -573,13 +572,12 @@ if (typeof buildUrl === 'undefined') {
                 
                 showToast('Atividade atualizada!', 'success');
             } else {
-                // INSERT
                 itemData.created_by = currentUser.id;
                 if (plannedPhotoUrl) {
                     itemData.planned_photo_url = plannedPhotoUrl;
                 }
                 
-                const { error } = await db
+                var { error } = await db
                     .from('itinerary_items')
                     .insert(itemData);
                 
@@ -600,12 +598,12 @@ if (typeof buildUrl === 'undefined') {
         // ============================================
         // FOTO PLANEJADA
         // ============================================
-        document.getElementById('plannedPhotoInput').addEventListener('change', (e) => {
-            const file = e.target.files[0];
+        document.getElementById('plannedPhotoInput').addEventListener('change', function(e) {
+            var file = e.target.files[0];
             if (file) {
                 selectedPlannedPhoto = file;
-                const reader = new FileReader();
-                reader.onload = (event) => {
+                var reader = new FileReader();
+                reader.onload = function(event) {
                     document.getElementById('plannedPhotoImg').src = event.target.result;
                     document.getElementById('plannedPhotoPreview').style.display = 'block';
                     document.getElementById('removePhotoBtn').style.display = 'inline-block';
@@ -625,69 +623,58 @@ if (typeof buildUrl === 'undefined') {
         // MEMBROS
         // ============================================
         async function loadMembers() {
-            const { data, error } = await db
+            var { data, error } = await db
                 .from('trip_members')
-                .select(`
-                    *,
-                    profiles:user_id (id, name, avatar_url)
-                `)
+                .select('*, profiles:user_id (id, name, avatar_url)')
                 .eq('trip_id', currentTripId);
             
-            const container = document.getElementById('membersContainer');
+            var container = document.getElementById('membersContainer');
             
             if (error || !data || data.length === 0) {
-                container.innerHTML = `
-                    <div class="card">
-                        <p style="text-align: center; color: var(--gray-500);">Nenhum membro ainda</p>
-                    </div>
-                `;
+                container.innerHTML = '<div class="card"><p style="text-align: center; color: var(--gray-500);">Nenhum membro ainda</p></div>';
                 return;
             }
             
-            // Separar aprovados e pendentes
-            const approved = data.filter(m => m.status === 'approved');
-            const pending = data.filter(m => m.status === 'pending');
+            var approved = data.filter(function(m) { return m.status === 'approved'; });
+            var pending = data.filter(function(m) { return m.status === 'pending'; });
             
-            let html = '';
+            var html = '';
             
             if (approved.length > 0) {
-                html += `<div class="card"><h4>✅ Membros Aprovados</h4>`;
-                approved.forEach(m => {
-                    const isAdmin = currentTrip?.user_id === m.user_id;
-                    html += `
-                        <div class="flex justify-between align-center" style="margin: 8px 0; padding: 8px; background: var(--gray-50); border-radius: var(--radius-sm);">
-                            <div class="flex align-center" style="gap: 8px;">
-                                <img src="${m.profiles?.avatar_url || 'https://via.placeholder.com/32'}" style="width: 32px; height: 32px; border-radius: 50%;">
-                                <span><strong>${escapeHtml(m.profiles?.name || 'Usuário')}</strong> ${isAdmin ? '👑' : ''}</span>
-                            </div>
-                            <span style="font-size: 12px; color: var(--gray-500);">${isAdmin ? 'Admin' : 'Membro'}</span>
-                        </div>
-                    `;
-                });
-                html += `</div>`;
+                html += '<div class="card"><h4>✅ Membros Aprovados</h4>';
+                for (var i = 0; i < approved.length; i++) {
+                    var m = approved[i];
+                    var isAdmin = currentTrip && currentTrip.user_id === m.user_id;
+                    var avatarUrl = m.profiles && m.profiles.avatar_url ? m.profiles.avatar_url : 'https://via.placeholder.com/32';
+                    var userName = m.profiles && m.profiles.name ? m.profiles.name : 'Usuário';
+                    html += '<div class="flex justify-between align-center" style="margin: 8px 0; padding: 8px; background: var(--gray-50); border-radius: var(--radius-sm);">';
+                    html += '<div class="flex align-center" style="gap: 8px;">';
+                    html += '<img src="' + avatarUrl + '" style="width: 32px; height: 32px; border-radius: 50%;">';
+                    html += '<span><strong>' + escapeHtml(userName) + '</strong> ' + (isAdmin ? '👑' : '') + '</span>';
+                    html += '</div>';
+                    html += '<span style="font-size: 12px; color: var(--gray-500);">' + (isAdmin ? 'Admin' : 'Membro') + '</span>';
+                    html += '</div>';
+                }
+                html += '</div>';
             }
             
-            if (pending.length > 0 && currentTrip?.user_id === currentUser.id) {
-                html += `<div class="card"><h4>⏳ Solicitações Pendentes</h4>`;
-                pending.forEach(m => {
-                    html += `
-                        <div class="flex justify-between align-center" style="margin: 8px 0; padding: 8px; background: var(--gray-50); border-radius: var(--radius-sm);">
-                            <div class="flex align-center" style="gap: 8px;">
-                                <img src="${m.profiles?.avatar_url || 'https://via.placeholder.com/32'}" style="width: 32px; height: 32px; border-radius: 50%;">
-                                <span>${escapeHtml(m.profiles?.name || 'Usuário')}</span>
-                            </div>
-                            <div style="display: flex; gap: 8px;">
-                                <button class="btn-primary" onclick="approveMember('${m.id}')" style="padding: 4px 12px; font-size: 12px;">
-                                    ✅ Aprovar
-                                </button>
-                                <button class="btn-danger" onclick="rejectMember('${m.id}')" style="padding: 4px 12px; font-size: 12px;">
-                                    ❌ Recusar
-                                </button>
-                            </div>
-                        </div>
-                    `;
-                });
-                html += `</div>`;
+            if (pending.length > 0 && currentTrip && currentTrip.user_id === currentUser.id) {
+                html += '<div class="card"><h4>⏳ Solicitações Pendentes</h4>';
+                for (var j = 0; j < pending.length; j++) {
+                    var p = pending[j];
+                    var avatarUrl2 = p.profiles && p.profiles.avatar_url ? p.profiles.avatar_url : 'https://via.placeholder.com/32';
+                    var userName2 = p.profiles && p.profiles.name ? p.profiles.name : 'Usuário';
+                    html += '<div class="flex justify-between align-center" style="margin: 8px 0; padding: 8px; background: var(--gray-50); border-radius: var(--radius-sm);">';
+                    html += '<div class="flex align-center" style="gap: 8px;">';
+                    html += '<img src="' + avatarUrl2 + '" style="width: 32px; height: 32px; border-radius: 50%;">';
+                    html += '<span>' + escapeHtml(userName2) + '</span>';
+                    html += '</div>';
+                    html += '<div style="display: flex; gap: 8px;">';
+                    html += '<button class="btn-primary" onclick="approveMember(\'' + p.id + '\')" style="padding: 4px 12px; font-size: 12px;">✅ Aprovar</button>';
+                    html += '<button class="btn-danger" onclick="rejectMember(\'' + p.id + '\')" style="padding: 4px 12px; font-size: 12px;">❌ Recusar</button>';
+                    html += '</div></div>';
+                }
+                html += '</div>';
             }
             
             container.innerHTML = html;
@@ -695,7 +682,7 @@ if (typeof buildUrl === 'undefined') {
 
         async function approveMember(memberId) {
             showLoading();
-            const { error } = await db
+            var { error } = await db
                 .from('trip_members')
                 .update({ status: 'approved' })
                 .eq('id', memberId);
@@ -714,7 +701,7 @@ if (typeof buildUrl === 'undefined') {
 
         async function rejectMember(memberId) {
             showLoading();
-            const { error } = await db
+            var { error } = await db
                 .from('trip_members')
                 .delete()
                 .eq('id', memberId);
@@ -735,174 +722,107 @@ if (typeof buildUrl === 'undefined') {
         // CONVITES
         // ============================================
         async function loadInvites() {
-            const container = document.getElementById('invitesContainer');
+            var container = document.getElementById('invitesContainer');
             
-            const { data, error } = await db
+            var { data, error } = await db
                 .from('trip_invites')
                 .select('*')
                 .eq('trip_id', currentTripId)
                 .order('created_at', { ascending: false });
             
             if (error || !data || data.length === 0) {
-                container.innerHTML = `
-                    <div class="card">
-                        <p style="text-align: center; color: var(--gray-500);">Nenhum convite gerado ainda</p>
-                        <button class="btn-primary btn-full" onclick="generateNewInvite()">
-                            <i class="fas fa-link"></i> Gerar link de convite
-                        </button>
-                    </div>
-                `;
+                container.innerHTML = '<div class="card"><p style="text-align: center; color: var(--gray-500);">Nenhum convite gerado ainda</p><button class="btn-primary btn-full" onclick="generateNewInvite()"><i class="fas fa-link"></i> Gerar link de convite</button></div>';
                 return;
             }
             
-            const activeInvites = data.filter(i => !i.used);
-            const usedInvites = data.filter(i => i.used);
+            var activeInvites = data.filter(function(i) { return !i.used; });
+            var usedInvites = data.filter(function(i) { return i.used; });
             
-            let html = '';
+            var html = '';
             
             if (activeInvites.length > 0) {
-                html += `<div class="card"><h4>🔗 Links Ativos</h4>`;
-                activeInvites.forEach(invite => {
-                    html += `
-                        <div style="margin: 8px 0; padding: 8px; background: var(--gray-50); border-radius: var(--radius-sm);">
-                            <div style="font-size: 12px; color: var(--gray-500);">
-                                Criado em: ${formatDate(invite.created_at)}
-                            </div>
-                            <div style="display: flex; gap: 8px; margin-top: 4px;">
-                                <input type="text" value="${window.location.origin}/join.html?token=${invite.token}" readonly style="flex: 1; padding: 6px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); font-size: 12px;">
-                                <button class="btn-primary" onclick="copyText('${window.location.origin}/join.html?token=${invite.token}')" style="padding: 4px 12px; font-size: 12px;">
-                                    <i class="fas fa-copy"></i>
-                                </button>
-                                <button class="btn-danger" onclick="deleteInvite('${invite.id}')" style="padding: 4px 12px; font-size: 12px;">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </div>
-                            <div style="font-size: 11px; color: var(--gray-400); margin-top: 4px;">
-                                Expira em: ${formatDate(invite.expires_at)}
-                            </div>
-                        </div>
-                    `;
-                });
-                html += `</div>`;
+                html += '<div class="card"><h4>🔗 Links Ativos</h4>';
+                for (var i = 0; i < activeInvites.length; i++) {
+                    var invite = activeInvites[i];
+                    var link = buildUrl('join.html?token=' + invite.token);
+                    html += '<div style="margin: 8px 0; padding: 8px; background: var(--gray-50); border-radius: var(--radius-sm);">';
+                    html += '<div style="font-size: 12px; color: var(--gray-500);">Criado em: ' + formatDate(invite.created_at) + '</div>';
+                    html += '<div style="display: flex; gap: 8px; margin-top: 4px;">';
+                    html += '<input type="text" value="' + link + '" readonly style="flex: 1; padding: 6px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); font-size: 12px;">';
+                    html += '<button class="btn-primary" onclick="copyText(\'' + link + '\')" style="padding: 4px 12px; font-size: 12px;"><i class="fas fa-copy"></i></button>';
+                    html += '<button class="btn-danger" onclick="deleteInvite(\'' + invite.id + '\')" style="padding: 4px 12px; font-size: 12px;"><i class="fas fa-trash"></i></button>';
+                    html += '</div>';
+                    html += '<div style="font-size: 11px; color: var(--gray-400); margin-top: 4px;">Expira em: ' + formatDate(invite.expires_at) + '</div>';
+                    html += '</div>';
+                }
+                html += '</div>';
             }
             
             if (usedInvites.length > 0) {
-                html += `<div class="card"><h4>✅ Links Utilizados</h4>`;
-                usedInvites.forEach(invite => {
-                    html += `
-                        <div style="margin: 8px 0; padding: 8px; background: var(--gray-50); border-radius: var(--radius-sm); opacity: 0.6;">
-                            <div style="font-size: 12px; color: var(--gray-500);">
-                                Criado em: ${formatDate(invite.created_at)} (utilizado)
-                            </div>
-                        </div>
-                    `;
-                });
-                html += `</div>`;
+                html += '<div class="card"><h4>✅ Links Utilizados</h4>';
+                for (var j = 0; j < usedInvites.length; j++) {
+                    var used = usedInvites[j];
+                    html += '<div style="margin: 8px 0; padding: 8px; background: var(--gray-50); border-radius: var(--radius-sm); opacity: 0.6;">';
+                    html += '<div style="font-size: 12px; color: var(--gray-500);">Criado em: ' + formatDate(used.created_at) + ' (utilizado)</div>';
+                    html += '</div>';
+                }
+                html += '</div>';
             }
             
-            html += `
-                <button class="btn-primary btn-full" onclick="generateNewInvite()">
-                    <i class="fas fa-plus"></i> Gerar novo link
-                </button>
-            `;
+            html += '<button class="btn-primary btn-full" onclick="generateNewInvite()"><i class="fas fa-plus"></i> Gerar novo link</button>';
             
             container.innerHTML = html;
         }
 
-async function generateNewInvite() {
-    showLoading();
-    
-    const token = generateToken();
-    
-    const { data, error } = await db
-        .from('trip_invites')
-        .insert({
-            trip_id: currentTripId,
-            token: token,
-            created_by: currentUser.id,
-            created_at: new Date(),
-            expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-        })
-        .select();
-    
-    hideLoading();
-    
-    if (error) {
-        showToast('Erro ao gerar convite', 'error');
-        return;
-    }
-    
-    showToast('Link gerado com sucesso!', 'success');
-    await loadInvites();
-    
-    if (data && data[0]) {
-        // 🔧 CORREÇÃO: Usar buildUrl para gerar o link completo
-        const link = buildUrl('join.html?token=' + data[0].token);
-        
-        try {
-            await navigator.clipboard.writeText(link);
-            showToast('Link copiado para a área de transferência!', 'success');
-        } catch (err) {
-            // Fallback para navegadores sem suporte a clipboard
-            const input = document.createElement('input');
-            input.value = link;
-            document.body.appendChild(input);
-            input.select();
-            document.execCommand('copy');
-            document.body.removeChild(input);
-            showToast('Link copiado!', 'success');
+        async function generateNewInvite() {
+            showLoading();
+            
+            var token = generateToken();
+            
+            var { data, error } = await db
+                .from('trip_invites')
+                .insert({
+                    trip_id: currentTripId,
+                    token: token,
+                    created_by: currentUser.id,
+                    created_at: new Date(),
+                    expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+                })
+                .select();
+            
+            hideLoading();
+            
+            if (error) {
+                showToast('Erro ao gerar convite', 'error');
+                return;
+            }
+            
+            showToast('Link gerado com sucesso!', 'success');
+            await loadInvites();
+            
+            if (data && data[0]) {
+                var link = buildUrl('join.html?token=' + data[0].token);
+                
+                try {
+                    await navigator.clipboard.writeText(link);
+                    showToast('Link copiado para a área de transferência!', 'success');
+                } catch (err) {
+                    var input = document.createElement('input');
+                    input.value = link;
+                    document.body.appendChild(input);
+                    input.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(input);
+                    showToast('Link copiado!', 'success');
+                }
+            }
         }
-    }
-}
-    showLoading();
-    
-    const token = generateToken();
-    
-    const { data, error } = await db
-        .from('trip_invites')
-        .insert({
-            trip_id: currentTripId,
-            token: token,
-            created_by: currentUser.id,
-            created_at: new Date(),
-            expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-        })
-        .select();
-    
-    hideLoading();
-    
-    if (error) {
-        showToast('Erro ao gerar convite', 'error');
-        return;
-    }
-    
-    showToast('Link gerado com sucesso!', 'success');
-    await loadInvites();
-    
-    if (data && data[0]) {
-        // Usar a função buildUrl para criar o link correto
-        const link = buildUrl(`join.html?token=${data[0].token}`);
-        
-        try {
-            await navigator.clipboard.writeText(link);
-            showToast('Link copiado para a área de transferência!', 'success');
-        } catch (err) {
-            // Fallback para navegadores sem suporte a clipboard
-            const input = document.createElement('input');
-            input.value = link;
-            document.body.appendChild(input);
-            input.select();
-            document.execCommand('copy');
-            document.body.removeChild(input);
-            showToast('Link copiado!', 'success');
-        }
-    }
 
         async function deleteInvite(inviteId) {
             if (!confirm('Tem certeza que deseja excluir este convite?')) return;
             
             showLoading();
-            const { error } = await db
+            var { error } = await db
                 .from('trip_invites')
                 .delete()
                 .eq('id', inviteId);
@@ -923,29 +843,35 @@ async function generateNewInvite() {
             loadInvites();
         }
 
-        // ============================================
-        // UTILITÁRIOS DE TEXTO
-        // ============================================
-        function generateToken() {
-            return Array.from(crypto.getRandomValues(new Uint8Array(16)))
-                .map(b => b.toString(16).padStart(2, '0'))
-                .join('');
+        function copyText(text) {
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).then(function() {
+                    showToast('Copiado!', 'success');
+                }).catch(function() {
+                    fallbackCopy(text);
+                });
+            } else {
+                fallbackCopy(text);
+            }
         }
 
-        async function copyText(text) {
-            try {
-                await navigator.clipboard.writeText(text);
-                showToast('Copiado!', 'success');
-            } catch (err) {
-                // Fallback
-                const input = document.createElement('input');
-                input.value = text;
-                document.body.appendChild(input);
-                input.select();
-                document.execCommand('copy');
-                document.body.removeChild(input);
-                showToast('Copiado!', 'success');
+        function fallbackCopy(text) {
+            var input = document.createElement('input');
+            input.value = text;
+            document.body.appendChild(input);
+            input.select();
+            document.execCommand('copy');
+            document.body.removeChild(input);
+            showToast('Copiado!', 'success');
+        }
+
+        function generateToken() {
+            var result = '';
+            var characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            for (var i = 0; i < 32; i++) {
+                result += characters.charAt(Math.floor(Math.random() * characters.length));
             }
+            return result;
         }
 
         // ============================================
@@ -954,7 +880,6 @@ async function generateNewInvite() {
         loadTripDetails();
     </script>
 
-    <!-- Estilos adicionais -->
     <style>
         .tabs {
             display: flex;
