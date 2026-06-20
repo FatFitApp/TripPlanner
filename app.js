@@ -328,48 +328,22 @@ async function loadTripsForSidebar() {
 }
 
 // ============================================
-// TIMELINE (Atualizada para mostrar posts de todas as viagens)
+// LOAD TIMELINE (COM ROTEIRO VINCULADO)
 // ============================================
 async function loadTimeline() {
     showLoading();
     
-    // Buscar IDs das viagens que o usuário participa
-    const { data: memberTrips } = await db
-        .from('trip_members')
-        .select('trip_id')
-        .eq('user_id', currentUser.id)
-        .eq('status', 'approved');
-    
-    const memberTripIds = (memberTrips || []).map(m => m.trip_id);
-    
-    // Buscar viagens próprias
-    const { data: ownTrips } = await db
-        .from('trips')
-        .select('id')
-        .eq('user_id', currentUser.id);
-    
-    const ownTripIds = (ownTrips || []).map(t => t.id);
-    
-    // Combinar todos os IDs
-    const allTripIds = [...new Set([...memberTripIds, ...ownTripIds])];
-    
-    // Buscar posts
-    let query = db
+    // Buscar posts com informações do roteiro
+    const { data: posts, error } = await db
         .from('social_posts')
         .select(`
             *,
             profiles:user_id (name, avatar_url),
-            trips:trips (title)
+            trips:trips (title),
+            itinerary_items:itinerary_item_id (title, day_number)
         `)
         .order('created_at', { ascending: false })
         .limit(50);
-    
-    // Se tiver IDs de viagens, filtrar por elas
-    if (allTripIds.length > 0) {
-        query = query.in('trip_id', allTripIds);
-    }
-    
-    const { data: posts, error } = await query;
     
     const container = document.getElementById('timelineContainer');
     
@@ -388,48 +362,58 @@ async function loadTimeline() {
     }
     
     if (container) {
-        container.innerHTML = posts.map(post => `
-            <div class="timeline-item">
-                <div class="timeline-header">
-                    <img src="${post.profiles?.avatar_url || 'https://via.placeholder.com/40'}" class="avatar-sm">
-                    <div class="timeline-header-info">
-                        <strong>${escapeHtml(post.profiles?.name || 'Usuário')}</strong>
-                        <small>${post.trips?.title ? `📍 ${post.trips.title} • ` : ''}${formatRelativeTime(post.created_at)}</small>
+        container.innerHTML = posts.map(post => {
+            const itineraryTitle = post.itinerary_items?.title || null;
+            const itineraryDay = post.itinerary_items?.day_number || null;
+            
+            return `
+                <div class="timeline-item">
+                    <div class="timeline-header">
+                        <img src="${post.profiles?.avatar_url || 'https://via.placeholder.com/40'}" class="avatar-sm">
+                        <div class="timeline-header-info">
+                            <strong>${escapeHtml(post.profiles?.name || 'Usuário')}</strong>
+                            <small>
+                                ${post.trips?.title ? `📍 ${post.trips.title}` : '📝 Postagem avulsa'}
+                                ${itineraryTitle ? ` • 📋 ${escapeHtml(itineraryTitle)}${itineraryDay ? ` (Dia ${itineraryDay})` : ''}` : ''}
+                                <br>
+                                <span style="font-size: 11px; color: var(--gray-400);">${formatRelativeTime(post.created_at)}</span>
+                            </small>
+                        </div>
+                    </div>
+                    ${post.image_url ? `<img src="${post.image_url}" class="timeline-image">` : ''}
+                    <div class="timeline-caption">
+                        ${escapeHtml(post.caption || '')}
+                    </div>
+                    ${post.actual_cost ? `<div class="timeline-cost">💰 ${formatCurrency(post.actual_cost)}</div>` : ''}
+                    ${post.rating ? `<div class="timeline-cost" style="color: var(--warning);">⭐ ${'★'.repeat(post.rating)}${'☆'.repeat(5-post.rating)}</div>` : ''}
+                    <div class="timeline-actions">
+                        <button class="action-btn" data-post-id="${post.id}" data-action="like">
+                            <i class="far fa-heart"></i> <span>${post.likes || 0}</span>
+                        </button>
+                        <button class="action-btn" data-post-id="${post.id}" data-action="comment">
+                            <i class="far fa-comment"></i> Comentar
+                        </button>
+                    </div>
+                    <div class="comments-section" id="comments-${post.id}">
+                        <div class="comment-input">
+                            <input type="text" placeholder="Adicionar comentário..." id="comment-input-${post.id}">
+                            <button class="btn-secondary" onclick="addComment('${post.id}')">Enviar</button>
+                        </div>
                     </div>
                 </div>
-                ${post.image_url ? `<img src="${post.image_url}" class="timeline-image">` : ''}
-                <div class="timeline-caption">
-                    ${escapeHtml(post.caption || '')}
-                </div>
-                ${post.actual_cost ? `<div class="timeline-cost">💰 ${formatCurrency(post.actual_cost)}</div>` : ''}
-                ${post.rating ? `<div class="timeline-cost" style="color: var(--warning);">⭐ ${'★'.repeat(post.rating)}${'☆'.repeat(5-post.rating)}</div>` : ''}
-                <div class="timeline-actions">
-                    <button class="action-btn" data-post-id="${post.id}" data-action="like">
-                        <i class="far fa-heart"></i> <span>${post.likes || 0}</span>
-                    </button>
-                    <button class="action-btn" data-post-id="${post.id}" data-action="comment">
-                        <i class="far fa-comment"></i> Comentar
-                    </button>
-                </div>
-                <div class="comments-section" id="comments-${post.id}">
-                    <div class="comment-input">
-                        <input type="text" placeholder="Adicionar comentário..." id="comment-input-${post.id}">
-                        <button class="btn-secondary" onclick="addComment('${post.id}')">Enviar</button>
-                    </div>
-                </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
     }
     
     hideLoading();
 }
-
 // ============================================
-// CREATE POST
+// CREATE POST (COM ROTEIRO VINCULADO)
 // ============================================
 async function submitPost() {
     const caption = document.getElementById('postCaption')?.value || '';
     const tripId = document.getElementById('postTrip')?.value || null;
+    const itineraryItemId = document.getElementById('postItineraryItem')?.value || null;
     const cost = document.getElementById('postCost')?.value;
     const rating = selectedRating;
     
@@ -454,6 +438,7 @@ async function submitPost() {
     const { error } = await db.from('social_posts').insert({
         user_id: currentUser.id,
         trip_id: tripId,
+        itinerary_item_id: itineraryItemId,
         image_url: imageUrl,
         caption: caption || null,
         actual_cost: cost ? parseFloat(cost) : null,
@@ -473,13 +458,25 @@ async function submitPost() {
     
     const captionInput = document.getElementById('postCaption');
     const costInput = document.getElementById('postCost');
+    const tripSelect = document.getElementById('postTrip');
+    const itinerarySelect = document.getElementById('postItineraryItem');
+    
     if (captionInput) captionInput.value = '';
     if (costInput) costInput.value = '';
+    if (tripSelect) tripSelect.value = '';
+    if (itinerarySelect) {
+        itinerarySelect.innerHTML = '<option value="">Selecione um roteiro</option>';
+        itinerarySelect.disabled = true;
+    }
     selectedRating = 0;
     selectedImageFile = null;
     if (imageInput) imageInput.value = '';
     const imagePreview = document.getElementById('imagePreview');
     if (imagePreview) imagePreview.style.display = 'none';
+    const stars = document.querySelectorAll('#postRating i');
+    stars.forEach(star => {
+        star.className = 'far fa-star';
+    });
     
     await loadTimeline();
 }
@@ -633,10 +630,7 @@ async function likePost(postId) {
 }
 
 // ============================================
-// EVENT LISTENERS
-// ============================================
-// ============================================
-// EVENT LISTENERS (COM buildUrl)
+// EVENT LISTENERS (COM ROTEIRO VINCULADO)
 // ============================================
 function setupEventListeners() {
     console.log('🎯 Configurando event listeners...');
@@ -657,7 +651,15 @@ function setupEventListeners() {
         overlay.addEventListener('click', closeSidebar);
     }
     
-    // Bottom navigation - COM buildUrl
+    // Listener para quando a viagem for alterada no modal de postagem
+    document.addEventListener('change', function(e) {
+        if (e.target && e.target.id === 'postTrip') {
+            const tripId = e.target.value;
+            loadItineraryItemsForPost(tripId);
+        }
+    });
+    
+    // Bottom navigation
     document.querySelectorAll('.nav-item').forEach(item => {
         item.addEventListener('click', async () => {
             const nav = item.dataset.nav;
@@ -692,33 +694,39 @@ function setupEventListeners() {
                     });
                 }
                 
-                const select = document.getElementById('postTrip');
-                if (select) {
-                    select.innerHTML = '<option value="">Sem viagem (postagem avulsa)</option>' +
+                // Preencher select de viagens
+                const tripSelect = document.getElementById('postTrip');
+                if (tripSelect) {
+                    tripSelect.innerHTML = '<option value="">Sem viagem (postagem avulsa)</option>' +
                         (allTrips || []).map(t => `<option value="${t.id}">✈️ ${escapeHtml(t.title)}</option>`).join('');
                 }
+                
+                // Resetar select de roteiro
+                const itinerarySelect = document.getElementById('postItineraryItem');
+                if (itinerarySelect) {
+                    itinerarySelect.innerHTML = '<option value="">Selecione um roteiro</option>';
+                    itinerarySelect.disabled = true;
+                }
+                
                 openModal('createPostModal');
             }
             else if (nav === 'details') {
                 if (currentTripId) {
-                    // USANDO buildUrl
-                    window.location.href = buildUrl(`trip-detail.html?id=${currentTripId}`);
+                    window.location.href = buildUrl('trip-detail.html?id=' + currentTripId);
                 } else {
                     showToast('Selecione uma viagem no menu lateral', 'warning');
                 }
             }
             else if (nav === 'costs') {
                 if (currentTripId) {
-                    // USANDO buildUrl
-                    window.location.href = buildUrl(`costs.html?id=${currentTripId}`);
+                    window.location.href = buildUrl('costs.html?id=' + currentTripId);
                 } else {
                     showToast('Selecione uma viagem no menu lateral', 'warning');
                 }
             }
             else if (nav === 'chat') {
                 if (currentTripId) {
-                    // USANDO buildUrl
-                    window.location.href = buildUrl(`chat.html?id=${currentTripId}`);
+                    window.location.href = buildUrl('chat.html?id=' + currentTripId);
                 } else {
                     showToast('Selecione uma viagem no menu lateral', 'warning');
                 }
@@ -726,14 +734,13 @@ function setupEventListeners() {
         });
     });
     
-    // Sidebar actions - COM buildUrl
+    // Sidebar actions
     document.querySelectorAll('.sidebar-item').forEach(item => {
         item.addEventListener('click', async () => {
             const action = item.dataset.action;
             const tripId = item.dataset.tripId;
             
             if (action === 'profile') {
-                // USANDO buildUrl
                 window.location.href = buildUrl('profile.html');
             } 
             else if (action === 'create-trip') {
@@ -743,7 +750,7 @@ function setupEventListeners() {
                 currentTripId = tripId;
                 const { data: trips } = await db.from('trips').select('title').eq('id', tripId);
                 const tripTitle = trips?.[0]?.title || 'Viagem';
-                showToast(`Viagem "${tripTitle}" selecionada!`, 'success');
+                showToast('Viagem "' + tripTitle + '" selecionada!', 'success');
                 closeSidebar();
             } 
             else if (action === 'search-friends') {
@@ -751,7 +758,6 @@ function setupEventListeners() {
             } 
             else if (action === 'logout') {
                 await db.auth.signOut();
-                // USANDO buildUrl
                 window.location.href = buildUrl('index.html');
             }
         });
@@ -761,7 +767,6 @@ function setupEventListeners() {
     const profileAvatar = document.getElementById('profileAvatar');
     if (profileAvatar) {
         profileAvatar.addEventListener('click', () => {
-            // USANDO buildUrl
             window.location.href = buildUrl('profile.html');
         });
     }
@@ -995,4 +1000,37 @@ async function leaveTrip(tripId) {
     
     // Recarregar lista de viagens
     await loadTripsForSidebar();
+}
+// ============================================
+// CARREGAR ROTEIROS DA VIAGEM SELECIONADA
+// ============================================
+async function loadItineraryItemsForPost(tripId) {
+    const select = document.getElementById('postItineraryItem');
+    if (!select) return;
+    
+    if (!tripId) {
+        select.innerHTML = '<option value="">Selecione um roteiro</option>';
+        select.disabled = true;
+        return;
+    }
+    
+    showLoading();
+    
+    const { data, error } = await db
+        .from('itinerary_items')
+        .select('id, title, day_number')
+        .eq('trip_id', tripId)
+        .order('day_number', { ascending: true });
+    
+    hideLoading();
+    
+    if (error || !data || data.length === 0) {
+        select.innerHTML = '<option value="">Nenhum roteiro cadastrado</option>';
+        select.disabled = true;
+        return;
+    }
+    
+    select.innerHTML = '<option value="">Selecione um roteiro</option>' +
+        data.map(item => `<option value="${item.id}">📅 Dia ${item.day_number} - ${escapeHtml(item.title)}</option>`).join('');
+    select.disabled = false;
 }
